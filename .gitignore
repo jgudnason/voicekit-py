@@ -6,8 +6,11 @@ __pycache__/
 build/
 dist/
 
-# Virtual environments
-.venv/
+# Virtual environments (*.nosync keeps the venv out of iCloud Drive sync,
+# which otherwise stamps UF_HIDDEN on .venv contents and makes Python 3.11+
+# silently skip the editable-install .pth file)
+.venv
+venv.nosync/
 venv/
 env/
 
