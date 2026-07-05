@@ -42,6 +42,9 @@ packages = ["src/voicekit"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+# Import the package straight from src/, independent of the editable-install
+# .pth file (iCloud Drive marks that file hidden and Python 3.11+ skips it)
+pythonpath = ["src"]
 
 [tool.ruff]
 line-length = 100
