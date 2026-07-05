@@ -49,6 +49,15 @@ Why rewrite instead of port:
   `fs: int`, and optional metadata (e.g. source filename). Passed explicitly
   everywhere rather than bare `(array, fs)` tuples, but with none of Aparat's
   operator-overloading/GUI-binding machinery.
+- `Signal` is strictly mono, permanently: every downstream algorithm is
+  defined on one channel, and a multichannel container would force each of
+  them to reinterpret what stereo means. Multichannel files are handled at
+  the I/O boundary instead — explicit channel selection in `read_wav`
+  (added when first needed), never a silent downmix, since the two real
+  stereo cases (conversation per channel vs. speech+laryngograph per
+  channel) are structurally identical but semantically opposite. Which
+  channel means what in a given corpus is per-dataset knowledge and lives
+  in that corpus's adapter in `validation/`, not in `voicekit.io`.
 - Per-algorithm result types (e.g. `GciResult` with `gci`, `goi`, candidate
   arrays; `VoiceFeatures` with `f0`, `naq`, `qoq`, `h1h2`, etc.) instead of
   positional-output tuples or MATLAB-style structs.
