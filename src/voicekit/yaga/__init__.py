@@ -1,5 +1,11 @@
 """YAGA: GCI/GOI detection, after DYPSA (Naylor, Kounoudes, Gudnason & Brookes, 2007)."""
 
+from voicekit.yaga.group_delay import (
+    GroupDelayConfig,
+    GroupDelayResult,
+    energy_weighted_group_delay,
+    odd_window_length,
+)
 from voicekit.yaga.swt import (
     BIOR15_HI_D,
     BIOR15_LO_D,
@@ -11,7 +17,11 @@ from voicekit.yaga.swt import (
 __all__ = [
     "BIOR15_HI_D",
     "BIOR15_LO_D",
+    "GroupDelayConfig",
+    "GroupDelayResult",
     "SwtResult",
+    "energy_weighted_group_delay",
     "multiscale_product",
+    "odd_window_length",
     "stationary_wavelet_transform",
 ]
