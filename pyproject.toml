@@ -34,6 +34,9 @@ dev = [
     "mypy",
     "scipy-stubs",
     "matplotlib",
+    # Independent cross-check of our from-scratch SWT filter taps (test-only,
+    # never a runtime dependency); see DESIGN.md dependency policy.
+    "PyWavelets",
 ]
 
 [tool.hatch.build.targets.wheel]
