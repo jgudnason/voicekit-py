@@ -24,11 +24,13 @@ numerical target.
   normalization/sign/tap-order transform, not raw equality).
 - `capture/` — the capture harness (not run in CI):
   - `make_inputs.py` — regenerates the committed `data/fixtures/*.wav`
-    inputs deterministically.
-  - `instrument.py` — injects `save`-hooks into the reference at named
-    anchor lines. Reads the reference at runtime; no GPL source is vendored
-    into this repo.
-  - `capture_one.m` — runs the instrumented detector on one fixture.
+    inputs deterministically; also builds the ground-truth residual used to
+    bypass IAIF for the 8 kHz fixture (`clean_residual`).
+  - `instrument.py` — injects `save`-hooks (and the `VK_OVERRIDE_UDASH`
+    clean-residual hook) into the reference by line number, guarded by a byte
+    SHA-256. Reads the reference at runtime; no GPL source is vendored here.
+  - `capture_one.m` — runs the instrumented detector on one fixture,
+    optionally substituting a clean residual via `VK_OVERRIDE_UDASH`.
   - `capture_golden.py` — orchestrates instrument → run → convert to `.npz`.
 
 ## Inputs
@@ -39,7 +41,7 @@ committed bytes the single source of truth — MATLAB `audioread` and
 voicekit `read_wav` both scale int16 by 2**15, so both sides of each
 comparison read bit-identical floats.
 
-The IAIF residual length (`nu`) drives the SWT pad/trim path, which pads to
+The residual length (`nu`) drives the SWT pad/trim path, which pads to
 a multiple of `2^nlev = 8`:
 
 | fixture             | fs    | residual `nu` | `nu % 8` | padded `nU` | pad |
@@ -48,7 +50,28 @@ a multiple of `2^nlev = 8`:
 | `vowel_glide_16k`   | 16000 | 8837          | 5        | 8840        | 3   |
 | `vowel_f0120_8k`    | 8000  | 4801          | 1        | 4808        | 7   |
 
-The first skips padding; the other two exercise the pad-and-trim path.
+The first skips padding; the other two exercise the pad-and-trim path (pad
+amounts 3 and 7).
+
+### The 8 kHz fixture bypasses IAIF
+
+The reference MATLAB IAIF is unusable at 8 kHz: `iaif.m` zero-pads the last
+512 samples after its 1025-tap FIR highpass, and at an 8 kHz analysis-frame
+size (256 samples) that tail forms fully-zero LPC frames, so `lpcauto`'s
+`R(0)=0` divides by zero and the residual tail comes back NaN. This is
+intrinsic to the reference at 8 kHz — every synthetic 8 kHz input hits it,
+independent of content — and it corrupts the whole downstream capture.
+
+So for `vowel_f0120_8k` the capture substitutes a clean, deterministic
+**ground-truth residual** (the glottal-flow derivative the vowel is built
+from, `make_inputs.clean_residual`) for the internal IAIF estimate, via the
+`VK_OVERRIDE_UDASH` hook (see below). Every stage from the SWT onward then
+runs in MATLAB on that clean input, giving valid `swd`/`swa`/`mp`/group-delay
+captures while still exercising the `fs<9000` code path. The 16 kHz fixtures
+run the real IAIF, which is clean there. SWT itself is fs-independent, so
+this substitution does not weaken its validation; it only bypasses a broken
+upstream stage. `vowel_f0120_8k`'s `udash` is therefore the ground-truth
+residual, not an IAIF output.
 
 ## Reproducing
 
@@ -79,7 +102,8 @@ Shapes below are for `vowel_f0100_16k` (`nu = 9600`); `N = nu`,
   `wfilters_bior15.npz`).
 
 **Stage boundaries** (input → output at each step)
-- `udash` `(N,)` — IAIF glottal-flow derivative; the SWT input.
+- `udash` `(N,)` — the SWT input: the IAIF glottal-flow derivative (16 kHz
+  fixtures), or the ground-truth residual (`vowel_f0120_8k`; see above).
 - `swa`, `swd` `(3, N)` — SWT approximation and detail rows, trimmed to `nu`.
 - `mp` `(N,)` — multiscale product `prod(swd)`.
 - `nmp`, `crnmp` `(N,)` — negative half-wave-rectified `mp`, and its cube

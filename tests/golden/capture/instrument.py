@@ -40,8 +40,10 @@ HEADER_LINES = (1, 486)
 # The line number identifies the stage boundary; the statements name the
 # variables to capture. Descriptions are our own words, not source text.
 HOOKS: list[tuple[int, str, list[str]]] = [
-    (175, "IAIF residual fed into the SWT",
-     ["GOLD.udash=udash;"]),
+    (175, "IAIF residual fed into the SWT (with clean-input override for stage isolation)",
+     ["global VK_OVERRIDE_UDASH;",
+      "if ~isempty(VK_OVERRIDE_UDASH), udash = VK_OVERRIDE_UDASH(:); end",
+      "GOLD.udash=udash;"]),
     (181, "SWT setup: levels, residual length, pad-to-multiple-of-8 length",
      ["GOLD.nlev=nlev;", "GOLD.nu=nu;", "GOLD.nU=nU;"]),
     (182, "bior1.5 decomposition filters (convention reference)",

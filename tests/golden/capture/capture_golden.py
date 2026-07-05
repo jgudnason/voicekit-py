@@ -26,9 +26,9 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+import make_inputs
 import numpy as np
 import scipy.io
-
 from instrument import apply as instrument_apply
 
 REPO = Path(__file__).resolve().parents[3]
@@ -75,13 +75,16 @@ VECTOR_FIELDS = {
 SCALAR_FIELDS = {"nlev", "nu", "nU", "toff", "input_fs"}
 
 
-def run_matlab(scratch: Path, fixture_wav: Path, out_mat: Path, opt: str) -> None:
+def run_matlab(
+    scratch: Path, fixture_wav: Path, out_mat: Path, opt: str, override_mat: Path | None
+) -> None:
+    override_arg = f"'{override_mat}'" if override_mat is not None else "''"
     cmd = (
         f"addpath('{VOICEBOX}');"
         f"addpath('{VSATOOLS}');addpath('{VSATOOLS}/YAGA');"
         f"addpath('{scratch}','-begin');"  # instrumented copy shadows reference
         f"addpath('{Path(__file__).parent}');"
-        f"capture_one('{fixture_wav}','{out_mat}','{opt}');"
+        f"capture_one('{fixture_wav}','{out_mat}','{opt}',{override_arg});"
     )
     subprocess.run([MATLAB, "-batch", cmd], check=True)
 
@@ -113,10 +116,17 @@ def main() -> None:
         wfilters_saved = False
         for name in FIXTURE_NAMES:
             fixture_wav = FIXTURES / f"{name}.wav"
+            # Fixtures flagged bypass_iaif drive the SWT stage with a clean
+            # ground-truth residual instead of the reference's (8 kHz-NaN) IAIF.
+            residual = make_inputs.clean_residual(name)
+            override_mat: Path | None = None
+            if residual is not None:
+                override_mat = scratch / f"{name}_residual.mat"
+                scipy.io.savemat(override_mat, {"udash": residual})
             merged: dict[str, np.ndarray] = {}
             for opt, tag in [("", "default"), ("v", "vus")]:
                 out_mat = scratch / f"{name}_{tag}.mat"
-                run_matlab(scratch, fixture_wav, out_mat, opt)
+                run_matlab(scratch, fixture_wav, out_mat, opt, override_mat)
                 gold = load_gold(out_mat)
                 for k, v in gold.items():
                     if k == "opt":
