@@ -6,6 +6,7 @@ from voicekit.yaga.group_delay import (
     energy_weighted_group_delay,
     odd_window_length,
 )
+from voicekit.yaga.phase_slope import phase_slope_projection
 from voicekit.yaga.swt import (
     BIOR15_HI_D,
     BIOR15_LO_D,
@@ -23,5 +24,6 @@ __all__ = [
     "energy_weighted_group_delay",
     "multiscale_product",
     "odd_window_length",
+    "phase_slope_projection",
     "stationary_wavelet_transform",
 ]
