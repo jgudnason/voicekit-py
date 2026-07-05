@@ -1,0 +1,15 @@
+voicekit-py
+Copyright 2026 Jon Gudnason
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+The domain algorithms in this toolbox (LPC, IAIF, GCI/GOI detection,
+weighted-LP glottal inverse filtering, LF-model fitting, voice source
+feature extraction) are implemented from first principles, following the
+published algorithm descriptions cited in each module's docstring. They are
+not ported from existing source code.
+
+Mike Brookes's VOICEBOX toolbox for MATLAB
+(http://www.ee.ic.ac.uk/hp/staff/dmb/voicebox/voicebox.html) is gratefully
+acknowledged as the reference implementation that many modules are checked
+against during development.
