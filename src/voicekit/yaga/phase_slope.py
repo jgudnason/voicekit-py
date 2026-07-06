@@ -30,15 +30,7 @@ References:
 import numpy as np
 import numpy.typing as npt
 
-
-def _matlab_round(x: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
-    """Round half away from zero, as MATLAB ``round`` does.
-
-    numpy's ``round`` is half-to-even, which diverges here on the common
-    cases (midpoint gaps of 1, 5, 9, ... give x.5; group-delay values landing
-    on k.5) and would shift the projected index. Used for both round steps.
-    """
-    return np.sign(x) * np.floor(np.abs(x) + 0.5)
+from voicekit.yaga._matlab_compat import matlab_round as _matlab_round
 
 
 def _falling_crossings(x: npt.NDArray[np.float64]) -> npt.NDArray[np.int64]:
