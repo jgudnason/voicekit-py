@@ -5,7 +5,7 @@ a specific behaviour of the reference MATLAB implementation (`dypsagoi.m` and th
 VOICEBOX functions it calls), including behaviours the reference's own authors
 flag as probable bugs.
 
-## Three sections — read this first
+## Four sections — read this first
 
 Most entries here are **matches to the reference, not divergences from it.** Every
 algorithm in this project is validated against captured MATLAB output at
@@ -33,6 +33,11 @@ from correctness; they do **not** diverge from the reference.
    reproductions (the port isn't matching a known-odd reference behaviour) nor
    divergences (the port doesn't differ): places where "bit-exact on all three
    fixtures" genuinely does not cover the path.
+4. **Fixture limitations** (§ "Fixture limitations — captures that don't reproduce
+   end-to-end"). The *inverse* of a coverage gap: a fixture whose captured output the
+   **correct** code cannot reproduce end-to-end, because the capture itself rests on a
+   synthetic substitution. The code isn't wrong and the path isn't unexercised — the
+   fixture's end-to-end anchor is simply not a faithful capture of the live pipeline.
 
 A future reader must not misread a "quirk reproduced" entry as "the port differs
 here." It does not: it matches. And must not read "passes every unit test" as
@@ -265,3 +270,40 @@ path, to make going and finding it deliberate rather than incidental.
   unvoiced material mid-signal, then voicing resumes — which puts a talkspurt-start
   row on the chosen path at `k >= 2`, giving the selected-path set-equality a
   non-empty spurt set to separate.
+
+---
+
+## Fixture limitations — captures that don't reproduce end-to-end
+
+A fixture whose captured output the **correct** code cannot reproduce when the full
+pipeline is run live, because the capture was produced with a synthetic substitution
+rather than the real upstream stage. This is not a code bug (the code is right) and
+not a coverage gap (the path *is* exercised) — it is a property of the *fixture*: its
+end-to-end anchor is not a faithful capture of the live pipeline, so it validates
+stage-isolated parity and composition *sanity*, but not composition *exactness*.
+
+### F1. `vowel_f0120_8k` — end-to-end capture rests on a clean-residual injection
+
+- **Where:** the 8 kHz fixture's end-to-end `gci` capture; `voicekit.yaga.yaga` on
+  8 kHz input.
+- **What happened:** the reference MATLAB IAIF returns a NaN residual tail at 8 kHz
+  (an intrinsic reference failure — see `tests/golden/README.md`, "The 8 kHz fixture
+  bypasses IAIF"), so the capture substitutes a clean synthetic ground-truth residual
+  for the IAIF estimate. Every stage *downstream of IAIF* was then captured on that
+  clean residual and is valid for stage-isolated parity. But `yaga()` run live uses
+  the real (from-scratch, NaN-free) IAIF, whose 8 kHz residual differs from the
+  injected one (correlation ~0.83), so the live end-to-end `gci` does **not** match
+  the captured `gci`.
+- **Consequence:** `vowel_f0120_8k` is used for **stage-isolated** parity (SWT, group
+  delay, psp, costs, forward pass, traceback, refine — all bit-exact on captured
+  inputs) and for end-to-end **runs-and-sane** (the pipeline completes and yields
+  plausible voiced GCIs: F0 ≈ 120 Hz, uniform periods), but **not** for end-to-end
+  bit-exactness. The two 16 kHz fixtures carry the end-to-end exactness proof (their
+  captured residual is real IAIF output, which the live IAIF reproduces bit-exact).
+- **Origin:** this is exactly the consequence flagged when the 8 kHz fixture was
+  regenerated as a *per-stage-parity* fixture rather than an *end-to-end anchor* (its
+  `udash` is the ground-truth residual, not an IAIF output; see
+  `tests/golden/README.md`). It is recorded here, not papered over.
+- **Not fixed by API:** `yaga()` deliberately has **no** residual-injection parameter
+  to force 8 kHz to match — that would be shaping production code to a fixture's
+  workaround. The limitation stands as documented instead.
