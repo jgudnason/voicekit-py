@@ -84,6 +84,13 @@ def test_multiscale_product_matches_capture(name):
     np.testing.assert_allclose(mp, d["mp"], rtol=1e-10, atol=1e-12)
 
 
+@pytest.mark.parametrize("name", FIXTURES)
+def test_negative_cube_root_matches_capture(name):
+    """The GCI-branch cube root of the negative half reproduces the captured crnmp."""
+    d = np.load(GOLDEN / f"{name}.npz")
+    np.testing.assert_allclose(swt.negative_cube_root(d["mp"]), d["crnmp"], rtol=1e-10, atol=1e-12)
+
+
 @pytest.mark.parametrize("name", ["vowel_glide_16k", "vowel_f0120_8k"])
 def test_pad_and_trim_path_exercised(name):
     """The pad/trim path: a non-multiple-of-8 length round-trips to itself."""

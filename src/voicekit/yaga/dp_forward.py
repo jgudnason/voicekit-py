@@ -54,6 +54,21 @@ _START_STATE_GAP = 2  # extra samples beyond qrmax for the appended start/end st
 _SPURT_QMIN_THRESHOLD = 2  # no spurt may start until qmin exceeds this (dypsa2 compat)
 
 
+def append_boundary_states(
+    positions: npt.NDArray[np.int64] | npt.NDArray[np.float64], qrmax: int
+) -> npt.NDArray[np.float64]:
+    """Prepend/append the artificial start/end states to the candidate positions.
+
+    The DP brackets the real candidates with a start state ``qrmax+2`` samples
+    before the first and an end state ``qrmax+2`` after the last. Shared with
+    the traceback so the two cannot disagree on the bracketing.
+    """
+    positions = np.asarray(positions, dtype=np.float64)
+    start = positions[0] - qrmax - _START_STATE_GAP
+    end = positions[-1] + qrmax + _START_STATE_GAP
+    return np.concatenate([[start], positions, [end]])
+
+
 @dataclass(frozen=True)
 class DpConfig:
     """Parameters of the DP forward pass.
@@ -149,9 +164,7 @@ def forward_pass(
     qrmax = int(np.floor(fs / cfg.fxmin))
 
     # Appended start/end states, and the padded per-candidate cost vectors.
-    start = positions[0] - qrmax - _START_STATE_GAP
-    end = positions[-1] + qrmax + _START_STATE_GAP
-    g_n = np.concatenate([[start], positions, [end]])
+    g_n = append_boundary_states(positions, qrmax)
     g_flag = np.concatenate([[0.0], np.asarray(flags, dtype=np.float64), [0.0]])
     cfn = np.concatenate([[0.0], np.asarray(frobenius_cost, dtype=np.float64), [0.0]])
     ch = np.concatenate([[0.0], np.asarray(phase_slope_cost, dtype=np.float64), [0.0]])

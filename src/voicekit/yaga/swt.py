@@ -145,3 +145,16 @@ def multiscale_product(
     """
     detail = stationary_wavelet_transform(x, levels, lo_d, hi_d).detail
     return np.prod(detail, axis=0)
+
+
+def negative_cube_root(mp: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
+    """Cube root of the negatively half-wave-rectified multiscale product (GCI branch).
+
+    The GCI detector uses the *negative* half of the multiscale product (the
+    positive half is zeroed), then takes the cube root to compress the dynamic
+    range while preserving sign. This is deliberately kept out of
+    `multiscale_product`, which stays sign-neutral and reusable: the GOI branch
+    needs the mirror-image positive-half sibling of this transform.
+    """
+    mp = np.asarray(mp, dtype=np.float64)
+    return np.cbrt(np.where(mp > 0, 0.0, mp))
