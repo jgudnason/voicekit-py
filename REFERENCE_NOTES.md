@@ -5,30 +5,38 @@ a specific behaviour of the reference MATLAB implementation (`dypsagoi.m` and th
 VOICEBOX functions it calls), including behaviours the reference's own authors
 flag as probable bugs.
 
-## Two categories — read this first
+## Three sections — read this first
 
-These entries are **matches to the reference, not divergences from it.** Every
+Most entries here are **matches to the reference, not divergences from it.** Every
 algorithm in this project is validated against captured MATLAB output at
 machine-epsilon tolerance ("golden masters"); to pass, the Python must reproduce
-what the reference actually computes — quirks included. So an entry here means
-*"the port faithfully matches the reference at this point,"* even where that point
-diverges from what would be *correct*. Several of these are annotated as probable
-bugs **by the reference's own source comments**, quoted verbatim below. They
-diverge from correctness; they do **not** diverge from the reference.
+what the reference actually computes — quirks included. So a *Reproductions* entry
+means *"the port faithfully matches the reference at this point,"* even where that
+point diverges from what would be *correct*. Several are annotated as probable bugs
+**by the reference's own source comments**, quoted verbatim below. They diverge
+from correctness; they do **not** diverge from the reference.
 
-1. **Reproductions** (this document). The port matches the reference. Two flavours:
+1. **Reproductions** (§ "Reproduced reference quirks"). The port matches the
+   reference. Two flavours:
    - *self-flagged reference bugs* — the reference source comments call them
      probable bugs or compatibility hacks; and
    - *deliberate departures from a textbook/library standard* that the reference
      makes and we therefore match (e.g. an alignment convention that differs from
      stock/`PyWavelets` behaviour but is what the reference does).
-2. **Divergences** (§ "Divergences from the reference", below). Places where the
-   Python **deliberately does not** match the MATLAB — a different category
-   entirely. **There are none yet.** If one ever appears it gets its own entry
-   there with a dated rationale and the accuracy result that justified it.
+2. **Divergences** (§ "Divergences from the reference"). Places where the Python
+   **deliberately does not** match the MATLAB — a different category entirely.
+   **There are none yet.** If one ever appears it gets its own entry there with a
+   dated rationale and the accuracy result that justified it.
+3. **Coverage gaps** (§ "Coverage gaps — reproduced-but-unexercised paths"). Code
+   paths implemented from the source and believed correct, but which **no captured
+   fixture exercises** — so the golden master is *silent* on them. Neither
+   reproductions (the port isn't matching a known-odd reference behaviour) nor
+   divergences (the port doesn't differ): places where "bit-exact on all three
+   fixtures" genuinely does not cover the path.
 
 A future reader must not misread a "quirk reproduced" entry as "the port differs
-here." It does not: it matches.
+here." It does not: it matches. And must not read "passes every unit test" as
+"fully exercised" — see the coverage-gaps section for where it isn't.
 
 **Convention:** the inline code comment at each reproduction site should point
 back to this file (e.g. `# see REFERENCE_NOTES.md: waveform window +1`) rather
@@ -165,3 +173,61 @@ dated rationale and the accuracy result that justified the change.
 
 **None yet.** The port matches the reference everywhere; correction candidates
 above are revisited once corpus-accuracy numbers exist.
+
+---
+
+## Coverage gaps — reproduced-but-unexercised paths
+
+Code paths implemented from the reference source and believed correct, but which
+**no committed fixture traverses**. The unit-test suite validates every algorithm
+against captured MATLAB output at machine-epsilon tolerance — but the fixtures are
+small, clean, continuous synthetic vowels, and they structurally do not reach these
+branches. So for the paths below, *"bit-exact on all three fixtures" does not cover
+them*: the golden master is silent, and the code is trusted on a source reading
+alone.
+
+This section doubles as a **validation-phase worklist**: these are the paths that
+pass every unit test but that real speech will first stress. Corpus validation
+(OpenGlot / APLAWD) is the likely first real exerciser — multi-spurt utterances,
+varied glottal-cycle spacing, and quantization artifacts almost certainly appear
+there — so each entry records the concrete input characteristic that would drive the
+path, to make going and finding it deliberate rather than incidental.
+
+### C1. Phase-slope projection: flat (`sign(gdotdot)==0`) turning point
+
+- **Where:** `voicekit.yaga.phase_slope`, turning-point min/max classification.
+- **Why the fixtures miss it:** classification reads `sign(gdotdot)` at the
+  extremum; on the smooth synthetic group-delay function an extremum is never
+  exactly flat, so `gdotdot` is always strictly non-zero there and every turning
+  point classifies as a clean min or max. The `sign(gdotdot)==0` branch (a turning
+  point that is neither) is never taken.
+- **What would exercise it:** a group-delay function with an exactly flat spot at an
+  extremum — e.g. from a clipped or coarsely quantized residual producing a plateau
+  in `gdwav` at a local extremum.
+
+### C2. Closed-phase cost: adjacent / degenerate-interval candidates
+
+- **Where:** `voicekit.yaga.dp_costs.closed_phase_cost`, the inclusive
+  inter-candidate range mean.
+- **Why the fixtures miss it:** the mean is taken over `u[pos_i : pos_{i+1}+1]`; the
+  clean vowels space candidates a full glottal cycle apart, so every interval is
+  long and the adjacent case (two candidates at the same or neighbouring samples,
+  giving a one-sample — or would-be empty — interval) never occurs. The orthogonal
+  unit test constructs it, but no fixture does.
+- **What would exercise it:** a signal with very short inter-candidate spacing — two
+  glottal-closure candidates one or zero samples apart (e.g. a doubled/creaky pulse
+  or a projected candidate landing on a zero-crossing one).
+
+### C3. Pitch-deviation kernel: mid-signal talkspurt-start row (`k >= 2`)
+
+- **Where:** `voicekit.yaga.dp_kernels.pitch_deviation` and its spurt-separation
+  test.
+- **Why the fixtures miss it:** a talkspurt start carries `dy_cspurt` instead of the
+  pitch kernel's value, identified by previous period 0. On the continuously voiced
+  vowels the only spurt start is at the utterance beginning (`k = 0, 1`), which is
+  outside the pitch kernel's `k >= 2` domain. So the spurt-separation set-equality
+  test only ever runs in its **empty-set** form — it confirms the kernel matches
+  every in-domain row, but never a case where an in-domain row *is* a spurt start.
+- **What would exercise it:** a multi-spurt utterance — silence or unvoiced material
+  mid-signal, then voicing resumes — which puts a talkspurt-start row at `k >= 2`,
+  in-domain, giving the set-equality a non-empty spurt set to separate.
