@@ -1,5 +1,13 @@
 """YAGA: GCI/GOI detection, after DYPSA (Naylor, Kounoudes, Gudnason & Brookes, 2007)."""
 
+from voicekit.yaga.dp_costs import (
+    CandidateSet,
+    FrobeniusConfig,
+    assemble_candidates,
+    closed_phase_cost,
+    frobenius_energy_cost,
+    frobenius_energy_function,
+)
 from voicekit.yaga.group_delay import (
     GroupDelayConfig,
     GroupDelayResult,
@@ -18,10 +26,16 @@ from voicekit.yaga.swt import (
 __all__ = [
     "BIOR15_HI_D",
     "BIOR15_LO_D",
+    "CandidateSet",
+    "FrobeniusConfig",
     "GroupDelayConfig",
     "GroupDelayResult",
     "SwtResult",
+    "assemble_candidates",
+    "closed_phase_cost",
     "energy_weighted_group_delay",
+    "frobenius_energy_cost",
+    "frobenius_energy_function",
     "multiscale_product",
     "odd_window_length",
     "phase_slope_projection",
