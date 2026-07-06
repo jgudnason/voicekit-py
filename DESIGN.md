@@ -12,7 +12,9 @@ algorithm descriptions.
 Why rewrite instead of port:
 - The existing MATLAB code has no automated tests, inconsistent conventions,
   duplicated/diverging files, and at least one unresolved, self-documented bug
-  (DYPSA's GOI post-processing step).
+  (DYPSA's GOI post-processing step). Reference quirks the port reproduces for
+  golden-master parity — including that GOI bug — are tracked in
+  [REFERENCE_NOTES.md](REFERENCE_NOTES.md).
 - Some of the existing code (`dypsagoi.m`) is bundled with Mike Brookes's
   GPL'd VOICEBOX toolbox and jointly copyrighted (Kounoudes/Gudnason/Naylor/
   Brookes). Reimplementing from the published algorithm rather than porting
