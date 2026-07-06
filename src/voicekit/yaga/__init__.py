@@ -8,6 +8,12 @@ from voicekit.yaga.dp_costs import (
     frobenius_energy_cost,
     frobenius_energy_function,
 )
+from voicekit.yaga.dp_kernels import (
+    PitchDeviationConfig,
+    WaveformSimilarityConfig,
+    pitch_deviation,
+    waveform_similarity,
+)
 from voicekit.yaga.group_delay import (
     GroupDelayConfig,
     GroupDelayResult,
@@ -30,7 +36,9 @@ __all__ = [
     "FrobeniusConfig",
     "GroupDelayConfig",
     "GroupDelayResult",
+    "PitchDeviationConfig",
     "SwtResult",
+    "WaveformSimilarityConfig",
     "assemble_candidates",
     "closed_phase_cost",
     "energy_weighted_group_delay",
@@ -39,5 +47,7 @@ __all__ = [
     "multiscale_product",
     "odd_window_length",
     "phase_slope_projection",
+    "pitch_deviation",
     "stationary_wavelet_transform",
+    "waveform_similarity",
 ]
