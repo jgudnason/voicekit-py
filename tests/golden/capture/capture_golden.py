@@ -69,6 +69,7 @@ VECTOR_FIELDS = {
     "gdwav", "sew_raw", "zcr_cand_raw", "pro_cand", "s_used", "fnwav",
     "aencost", "cencost", "dp_gcic", "dp_sew", "dp_Cfn", "dp_mycost",
     "gci_dp", "gci", "goi", "Lo_D", "Hi_D",
+    "dp_fc", "dp_ff", "dp_fpq", "dp_ffb", "dp_gsqm", "dp_gsd",
     "ret_gci", "ret_goi", "ret_gcic", "ret_goic", "ret_gdwav",
     "ret_udash", "ret_crnmp", "input_s",
 }

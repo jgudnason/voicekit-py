@@ -116,6 +116,24 @@ and the entry moves to the Divergences section.
   the best-documented of the five (flagged, explained, *and* the fix given), so
   the validation-phase worklist already has the concrete change and it is the
   low-effort correction when the time comes.
+- **Location confirmed (step 0′ internal capture):** the quirk lives entirely in
+  the **traceback**, not the forward pass. Both the quirk and the corrected
+  (`f_fb(Ncand+1)`) start nodes walk back through the *same* captured forward-pass
+  tables (`dp_fc`/`dp_ff`/`dp_fpq`/`dp_ffb`), which are computed identically
+  regardless of the traceback's start-node choice. So the forward-pass arbiter is
+  quirk-free, and sub-piece 2's recursion test cannot be contaminated by this
+  quirk; it is purely a sub-piece-3 (traceback) concern.
+- **Exercised on `vowel_glide_16k`:** reconstructing the traceback both ways from
+  the captured tables, the corrected `f_fb` start yields 62 GCIs versus the
+  quirk's 63. The extra GCI is **spurious** — the corrected path is exactly the
+  quirk path with its first GCI removed, so the forced-penultimate start prepends
+  one false glottal closure that the corrected form does not. On
+  `vowel_f0100_16k` and `vowel_f0120_8k` the two agree (penultimate == best-end
+  there), so the effect is real but fixture-dependent. The correction is therefore
+  now **both source-specified** (the reference states `i = f_fb(Ncand+1)`) **and
+  fixture-demonstrated** (glide shows the quirk emitting a spurious GCI the fix
+  removes) — no longer a comment-only candidate but one with a reproduced,
+  measurable symptom.
 - **Status:** reproduced (validation-phase correction candidate).
 
 ### 4. SWT one-sample alignment offset (`swtalign`)

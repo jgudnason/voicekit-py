@@ -124,6 +124,21 @@ Shapes below are for `vowel_f0100_16k` (`nu = 9600`); `N = nu`,
 - `ret_goic` `(Ngoicand, 2)` — GOI candidate set returned by the detector.
 - `input_s` `(N,)`, `input_fs` — the fixture samples and rate, as read.
 
+**DP forward-pass tables** (the internal arbiter, captured inside `dpgci`
+after the forward pass and before the traceback, from the GCI call — so they
+match `gci_dp`; tracing `dp_ff` back from the forced-penultimate start node
+reproduces `gci_dp`). Node arrays index the DP's `(Ncand+1)·dy_nbest`-node
+trellis (`dy_nbest = 5`, so `1210` for `vowel_f0100_16k`); candidate arrays are
+one per candidate plus the start state (`Ncand+1 = 242`). Here `Ncand = 241` is
+the assembled candidate count (before `dpgci` appends its start/end states).
+- `dp_fc` `(1210,)` — cumulative path cost per node (`Inf` for unreached nodes).
+- `dp_ff` `(1210,)` — backpointer: previous node in the best path to each node.
+- `dp_fpq` `(1210,)` — previous period `(q-p)` stored per node (`0` marks a
+  talkspurt start).
+- `dp_ffb` `(242,)` — index of the best end-of-spurt node for each candidate.
+- `dp_gsqm`, `dp_gsd` `(242,)` — per-candidate waveform-window statistics
+  (`sqrt(nx2)·mean`, and `1/(std·sqrt(nx2))`) used by the similarity cost.
+
 **DP cost decomposition** (from the `opt='v'` run, which uniquely computes
 it; its full-length signals are bit-identical to the default run and are
 not duplicated)

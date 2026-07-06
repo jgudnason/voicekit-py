@@ -73,6 +73,9 @@ HOOKS: list[tuple[int, str, list[str]]] = [
      ["GOLD.goi=goi;"]),
     (552, "dpgci: Frobenius energy cost per candidate (vus run only)",
      ["if ~isempty(vus)&&vus, GOLD.dp_Cfn=Cfn; end"]),
+    (699, "dpgci: forward-pass DP tables, after the loop and before the traceback",
+     ["if ~isfield(GOLD,'dp_fc'), GOLD.dp_fc=f_c; GOLD.dp_ff=f_f; GOLD.dp_fpq=f_pq;"
+      " GOLD.dp_ffb=f_fb; GOLD.dp_gsqm=g_sqm; GOLD.dp_gsd=g_sd; end"]),
     (729, "dpgci vus branch: per-candidate DP cost decomposition",
      ["GOLD.dp_mycost=mycost;", "GOLD.dp_gci_costed=gci;"]),
 ]
