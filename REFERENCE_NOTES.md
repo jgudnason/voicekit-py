@@ -232,6 +232,13 @@ path, to make going and finding it deliberate rather than incidental.
   long and the adjacent case (two candidates at the same or neighbouring samples,
   giving a one-sample — or would-be empty — interval) never occurs. The orthogonal
   unit test constructs it, but no fixture does.
+- **Not gated by the DP (negative finding, sub-piece 2):** the DP's `qmin`/`qrmin`
+  minimum-period constraint might look like it prevents this, but it does **not**.
+  `qmin` gates *path linkage* — which previous GCI may precede a candidate — not the
+  *spacing of the assembled candidate list*, which is what the closed-phase mean
+  iterates over. Assembly never enforces a minimum separation, so a reader must not
+  assume the DP's minimum period protects the closed-phase path: it is purely an
+  assembly-level reachability question (can assembly emit adjacent candidates?).
 - **What would exercise it:** a signal with very short inter-candidate spacing — two
   glottal-closure candidates one or zero samples apart (e.g. a doubled/creaky pulse
   or a projected candidate landing on a zero-crossing one).
@@ -242,10 +249,19 @@ path, to make going and finding it deliberate rather than incidental.
   test.
 - **Why the fixtures miss it:** a talkspurt start carries `dy_cspurt` instead of the
   pitch kernel's value, identified by previous period 0. On the continuously voiced
-  vowels the only spurt start is at the utterance beginning (`k = 0, 1`), which is
-  outside the pitch kernel's `k >= 2` domain. So the spurt-separation set-equality
-  test only ever runs in its **empty-set** form — it confirms the kernel matches
-  every in-domain row, but never a case where an in-domain row *is* a spurt start.
-- **What would exercise it:** a multi-spurt utterance — silence or unvoiced material
-  mid-signal, then voicing resumes — which puts a talkspurt-start row at `k >= 2`,
-  in-domain, giving the set-equality a non-empty spurt set to separate.
+  vowels the only spurt start on the *selected path* is at the utterance beginning
+  (`k = 0, 1`), which is outside the pitch kernel's `k >= 2` domain. So the
+  sub-piece-1 spurt-separation set-equality test only ever runs in its **empty-set**
+  form — it confirms the kernel matches every in-domain row, but never a case where
+  an in-domain *selected-path* row is a spurt start.
+- **Partially closed at the recursion level (sub-piece 2):** the DP forward pass
+  marks a spurt start with `f_pq == 0`, and the captured `dp_fpq` shows these on
+  **interior candidates**, not only path edges (7 interior spurt-start nodes on
+  `vowel_f0100_16k`). Sub-piece 2 asserts the recursion's `f_pq == 0` node set
+  equals the capture exactly, so the spurt-*marking* rule **is** validated in-domain
+  at the trellis level. What remains open is a spurt start on the **selected path**
+  mid-signal — the pitch-row / traceback case above.
+- **What would exercise the remaining gap:** a multi-spurt utterance — silence or
+  unvoiced material mid-signal, then voicing resumes — which puts a talkspurt-start
+  row on the chosen path at `k >= 2`, giving the selected-path set-equality a
+  non-empty spurt set to separate.

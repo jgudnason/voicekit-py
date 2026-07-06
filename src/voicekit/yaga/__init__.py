@@ -8,6 +8,12 @@ from voicekit.yaga.dp_costs import (
     frobenius_energy_cost,
     frobenius_energy_function,
 )
+from voicekit.yaga.dp_forward import (
+    DpConfig,
+    DpForwardResult,
+    forward_pass,
+    waveform_window_stats,
+)
 from voicekit.yaga.dp_kernels import (
     PitchDeviationConfig,
     WaveformSimilarityConfig,
@@ -33,6 +39,8 @@ __all__ = [
     "BIOR15_HI_D",
     "BIOR15_LO_D",
     "CandidateSet",
+    "DpConfig",
+    "DpForwardResult",
     "FrobeniusConfig",
     "GroupDelayConfig",
     "GroupDelayResult",
@@ -42,6 +50,7 @@ __all__ = [
     "assemble_candidates",
     "closed_phase_cost",
     "energy_weighted_group_delay",
+    "forward_pass",
     "frobenius_energy_cost",
     "frobenius_energy_function",
     "multiscale_product",
@@ -50,4 +59,5 @@ __all__ = [
     "pitch_deviation",
     "stationary_wavelet_transform",
     "waveform_similarity",
+    "waveform_window_stats",
 ]
