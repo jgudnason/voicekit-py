@@ -129,6 +129,50 @@ voicekit-py/
   - All generated output (metrics tables, plots, intermediate `.mat`/`.npz`
     dumps) goes under `validation/results/`, which is gitignored in full.
 
+### Parity vs. evaluation, and the validation roadmap
+
+Golden-master parity and corpus evaluation answer different questions, and the
+project needs both. Parity asks "does the Python compute the same thing as the
+reference MATLAB?" — bit-exact, one reference, and the primary porting defense.
+It cannot, even in principle, tell us whether the algorithm is any *good*:
+`dypsagoi.m` is an implementation with documented bugs (see `REFERENCE_NOTES.md`),
+not ground truth, so a faithful port reproduces its misses and scores PASS while
+saying nothing about detection quality. The evaluation methodology from the DYPSA
+and YAGA papers — larynx-cycle hit rate, miss rate, false-alarm rate,
+identification accuracy against a reference set of instants — is the only thing
+that measures quality.
+
+This gives two evaluation tracks, deliberately sequenced:
+
+- **Track A — the scoring harness, against the reference implementation.** Score
+  Python output against `dypsagoi.m` output run through the papers' hit/miss/FA
+  machinery. On the golden-master fixtures this scores trivially perfect (the
+  outputs are bit-identical by construction), which is exactly its value: it
+  validates the *scoring instrument* against known-answer inputs before that
+  instrument is pointed at real speech. Build it in `validation/`, sequenced
+  fixtures → OpenGlot (clean synthetic ground truth, no data-format risk) →
+  APLAWD. Best built once the `REFERENCE_NOTES.md` worklist is closer to complete
+  (post-features, likely post-VUV), so the harness is designed against the full
+  set of questions it must answer rather than retrofitted per milestone.
+- **Track B — evaluation against real ground truth.** Score against
+  EGG/laryngograph-derived reference GCIs/GOIs on APLAWD (and synthetic ground
+  truth on OpenGlot), reproducing the papers' accuracy figures as far as is
+  achievable. Needs Track A's harness plus the ground-truth data. Its decisive
+  capability is the side-by-side comparison — Python-vs-reference and
+  `dypsagoi.m`-vs-reference scored together — which isolates *port fidelity* from
+  *algorithm quality*: identical scores prove the port is transparent (every miss
+  is the algorithm's), divergence localizes a port artifact the golden master
+  missed (a fixture-coverage gap; cf. the C-entries in `REFERENCE_NOTES.md`). This
+  is the "is this error mine or the algorithm's?" decomposition, made decidable.
+
+The `REFERENCE_NOTES.md` worklist is the experimental apparatus for this. Each
+reproduced quirk is quarantined behind a named flag (e.g. `force_penultimate`,
+`goi_postprocess`) precisely so that a correction is a controlled experiment: flip
+one flag, hold the rest, measure the accuracy delta against ground truth under
+Track B. The quarantine flags and coverage accounting are not just porting hygiene
+— they are the pre-built methods for the development-phase papers that motivate
+continued YAGA work once the faithful port is done.
+
 ## 6. Licensing & attribution
 
 - Project-wide **Apache-2.0**, matching `vsaTools`, with public release as
@@ -243,3 +287,10 @@ inside the hot loops.
 - Whether to expose a CLI in addition to the library API.
 - Documentation tooling (mkdocs vs. Sphinx) for the eventual public release.
 - Logistics of getting OpenGlot/APLAWD data into the validation environment.
+- APLAWD is distributed in UCL's SFS (Speech Filing System) format, which may no
+  longer be actively supported; VOICEBOX's `readsfs.m` is the likely reader. This
+  is a long-lead dependency for the APLAWD side of Tracks A/B (see §5) — worth an
+  early, low-effort probe (confirm `readsfs.m` parses one APLAWD file into
+  samples/fs/EGG channel) so a format blocker surfaces with time to route around
+  it, rather than at the moment the corpus is needed. OpenGlot carries no such risk
+  and is therefore the natural first corpus target.
