@@ -131,7 +131,7 @@ def test_synthetic_no_open_phase_zeroes_cq_qoq():
 
 @pytest.mark.parametrize("name", FIXTURES)
 def test_extract_fills_timing_fields(name):
-    """extract_voice_features now populates cq/qoq; only h1h2/hrf remain NaN."""
+    """extract_voice_features populates cq/qoq (this group's fields)."""
     d = np.load(GOLDEN / f"{name}.npz")
     fs = float(d["input_fs"])
     gci0 = d["gci"].astype(np.int64) - 1  # 0-based
@@ -139,5 +139,3 @@ def test_extract_fills_timing_fields(name):
 
     np.testing.assert_allclose(vf.cq, d["feat_cq"][1:])  # left-edge dropped
     np.testing.assert_allclose(vf.qoq, d["feat_qoq"][1:])
-    for still_nan in ("h1h2", "hrf"):
-        assert np.all(np.isnan(getattr(vf, still_nan))), still_nan

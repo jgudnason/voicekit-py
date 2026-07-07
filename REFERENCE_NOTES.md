@@ -326,6 +326,29 @@ path, to make going and finding it deliberate rather than incidental.
   or breathy phonation and inter-word closures in corpus speech are the likely first
   exercisers.
 
+### C5. Spectral features: the `number_partials <= 1` degenerate guard
+
+- **Where:** `voicekit.features.spectral` (`spectral_params`, the guard); reference
+  `extractVoiceFeatures.m`, `specParam`.
+- **What the reference does:** `number_partials = floor(harmonic_limit/f0)` counts
+  the harmonics below 3000 Hz. When `number_partials <= 1` (at most H1 below the
+  limit) both features return a **literal `0`** — not NaN. This guards the
+  `partial_amplitudes(2)` / dB-sum access against there being no second harmonic.
+- **The `0` does not map to the `VoiceFeatures` NaN convention.** Elsewhere an
+  uncomputable cycle is `NaN`; here the reference deliberately writes `0`, so the
+  port writes `0` too (parity), and a consumer sees a real zero in `h1h2`/`hrf` (i.e.
+  the crossed HRF/H1-H2) for such a cycle, not `NaN`.
+- **Why the fixtures miss it:** the guard trips only for `f0 > 1500 Hz` (so that
+  `floor(3000/f0) <= 1`). Every fixture cycle has `number_partials >= 6` (f0 well
+  under 300 Hz), so the branch is reproduced from the source but never taken on
+  captured data.
+- **Exercised by an orthogonal unit test, not a fixture:** `test_features_spectral.py`
+  calls `spectral_params` with `period=8` at 16 kHz (f0 = 2000 Hz → one partial) and
+  asserts the `(0.0, 0.0)` return.
+- **What would exercise it on real data:** a cycle with f0 above ~1.5 kHz — a
+  soprano's top register, a child's cry, or a creaky/octave-jump cycle whose measured
+  period is very short.
+
 ---
 
 ## Fixture limitations — captures that don't reproduce end-to-end
@@ -427,4 +450,61 @@ surfaces each one.
   Reproduced faithfully (golden parity is the only gate). The Laukkanen-correct
   denominator (a duration, e.g. `T`) is *knowable* but the reference is still
   developing, so no correction is specified.
+- **Status:** reproduced (feature observation, no correction specified).
+
+### V3. H1-H2 and HRF are stored crossed (the wrong feature under each name)
+
+- **Where:** `voicekit.features.spectral` (`spectral_statistics`); reference
+  `extractVoiceFeatures.m`, the `specParam` call site.
+- **What the reference does:** `specParam` returns `[hrf, h1h2]` (in that order),
+  correctly computed. The caller assigns them under **swapped names**:
+  ```
+  [hrfx, h1h2x] = specParam(useg,T,fs);
+  h1h2(ig)=hrfx;     % the array named h1h2 receives HRF
+  hrf(ig)=h1h2x;     % the array named hrf receives H1-H2
+  ```
+  So the stored `h1h2` array holds the **harmonic richness factor** and the stored
+  `hrf` array holds the **H1-H2 level difference** — each feature is saved under the
+  other's name. This is not a shifted or mis-scaled value: it is *the wrong feature
+  entirely* under each label.
+- **The capture is crossed, so parity requires the swap.** The golden `.npz` saved
+  the reference's stored arrays, i.e. already swapped (verified: the port's HRF
+  output matches captured `feat_h1h2`, and does **not** match captured `feat_hrf`).
+  The port therefore reproduces the crossing to pass parity; **the uncrossing is not
+  applied** (it would break the golden gate), only documented. The swap is performed
+  once, visibly, at the assignment in `spectral_statistics` (`spectral_params`
+  itself returns the two values correctly named), so it is legible at the swap site
+  rather than hidden.
+- **Consumer-facing warning:** `VoiceFeatures.h1h2` therefore holds HRF and
+  `VoiceFeatures.hrf` holds H1-H2 — stated in the field docs and the dataclass
+  docstring, because a consumer reading `.h1h2` would otherwise get HRF values
+  labeled H1-H2 forever, invisibly.
+- **Definition sort:** knowable, unambiguous correction — **uncross the two
+  assignments** (`h1h2(ig)=h1h2x; hrf(ig)=hrfx`). This is the sharpest feature
+  observation: unlike V1 (defensible-intent off-by-one) or V2 (denominator "should
+  be a duration"), the fix here is exact and mechanical, the closest a feature entry
+  comes to the traceback fix-spec of Reproductions entry 3. Reproduced not corrected
+  only because golden parity is the gate and the reference is still developing.
+- **Status:** reproduced (feature observation; exact correction known = uncross).
+
+### V4. Harmonic bins read at integer indices despite the `T+2` segment length
+
+- **Where:** `voicekit.features.spectral` (`spectral_params`); reference
+  `extractVoiceFeatures.m`, `specParam`.
+- **What the reference does:** `oa = abs(fft(useg))/T` is taken over `useg`, which is
+  `len(nn) = T+2` samples long (the `T = len(nn)-2` convention — see V1). The
+  harmonics are then read at **integer FFT bins** — `oa(2:np+1)` treats bin `k` as
+  harmonic `k` (H1 = bin 1, H2 = bin 2), with **no interpolation and no peak search**.
+  But the FFT bin spacing is `fs/(T+2)`, while `f0 = fs/T`, so harmonic `k` (at
+  `k*fs/T`) actually falls near bin `k*(T+2)/T`, not bin `k` — e.g. `1.0127*k` at
+  T=158. The reference reads the integer bin regardless, a small systematic
+  under-index of every harmonic.
+- **Surfaced by:** the mechanics reading — the synthetic definition-check
+  deliberately uses `len(useg)=T` so the bins align and the *formulas* can be
+  certified; on real cycles (`len(useg)=T+2`) the bins are the off-by-`2/T` ones.
+- **Definition sort:** unexplained, and **kin to V1** — the same `len(nn)-2` period
+  convention resurfacing in the harmonic indexing (segment `T+2` long, treated as
+  `T`-periodic). Minor (fractions of a bin), reproduced bit-exact. No correction
+  specified; a corrected form would interpolate or peak-search near `k*f0`, or take
+  the FFT over exactly `T` samples.
 - **Status:** reproduced (feature observation, no correction specified).

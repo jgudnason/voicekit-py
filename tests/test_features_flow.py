@@ -93,7 +93,7 @@ def test_synthetic_mfdr_and_pa_known_values():
 
 @pytest.mark.parametrize("name", FIXTURES)
 def test_extract_fills_flow_fields(name):
-    """extract_voice_features now populates mfdr/pa/naq; cq/qoq/h1h2/hrf still NaN."""
+    """extract_voice_features populates mfdr/pa/naq (this group's fields)."""
     d = np.load(GOLDEN / f"{name}.npz")
     fs = float(d["input_fs"])
     gci0 = d["gci"].astype(np.int64) - 1  # 0-based
@@ -102,5 +102,3 @@ def test_extract_fills_flow_fields(name):
     np.testing.assert_allclose(vf.mfdr, d["feat_mfdr"][1:])  # left-edge dropped
     np.testing.assert_allclose(vf.pa, d["feat_pa"][1:])
     np.testing.assert_allclose(vf.naq, d["feat_naq"][1:])
-    for still_nan in ("h1h2", "hrf"):
-        assert np.all(np.isnan(getattr(vf, still_nan))), still_nan

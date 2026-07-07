@@ -19,6 +19,14 @@ class VoiceFeatures:
     All feature fields are ``float`` so an uncomputable cycle is ``NaN`` rather
     than a poison value (a consumer checks ``np.isnan`` before use); ``framek``
     (cycle-centre sample) and ``vuv`` (voiced flag) are always defined.
+
+    .. warning::
+       ``h1h2`` and ``hrf`` are **crossed**: the reference stores its two spectral
+       outputs under swapped names, and the port reproduces that for golden parity.
+       So ``h1h2`` actually holds the **harmonic richness factor** and ``hrf`` holds
+       the **H1-H2 level difference** -- the opposite of their names. This is
+       reproduced, not corrected; the correction is to uncross the two. See
+       REFERENCE_NOTES.md "Feature observations" V3.
     """
 
     f0: npt.NDArray[np.float64]  # fundamental frequency (Hz)
@@ -28,6 +36,6 @@ class VoiceFeatures:
     cq: npt.NDArray[np.float64]  # closed quotient
     pa: npt.NDArray[np.float64]  # pulse amplitude
     naq: npt.NDArray[np.float64]  # normalized amplitude quotient
-    h1h2: npt.NDArray[np.float64]  # H1-H2 level difference
-    hrf: npt.NDArray[np.float64]  # harmonic richness factor
+    h1h2: npt.NDArray[np.float64]  # CROSSED (V3): actually holds HRF, not H1-H2
+    hrf: npt.NDArray[np.float64]  # CROSSED (V3): actually holds H1-H2, not HRF
     qoq: npt.NDArray[np.float64]  # quasi-open quotient

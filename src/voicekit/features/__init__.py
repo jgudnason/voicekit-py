@@ -5,6 +5,7 @@ from voicekit.features.extract import extract_voice_features
 from voicekit.features.flow import flow_statistics
 from voicekit.features.framework import cycle_framework, iter_cycle_segments
 from voicekit.features.result import VoiceFeatures
+from voicekit.features.spectral import spectral_params, spectral_statistics
 from voicekit.features.timing import (
     open_close_timings,
     open_periods,
@@ -20,5 +21,7 @@ __all__ = [
     "iter_cycle_segments",
     "open_close_timings",
     "open_periods",
+    "spectral_params",
+    "spectral_statistics",
     "timing_statistics",
 ]
