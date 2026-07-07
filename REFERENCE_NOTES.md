@@ -5,7 +5,7 @@ a specific behaviour of the reference MATLAB implementation (`dypsagoi.m` and th
 VOICEBOX functions it calls), including behaviours the reference's own authors
 flag as probable bugs.
 
-## Four sections — read this first
+## Five sections — read this first
 
 Most entries here are **matches to the reference, not divergences from it.** Every
 algorithm in this project is validated against captured MATLAB output at
@@ -38,6 +38,14 @@ from correctness; they do **not** diverge from the reference.
    **correct** code cannot reproduce end-to-end, because the capture itself rests on a
    synthetic substitution. The code isn't wrong and the path isn't unexercised — the
    fixture's end-to-end anchor is simply not a faithful capture of the live pipeline.
+5. **Feature observations** (§ "Feature observations — a developing reference"). Like
+   the reproduced-quirk entries, but for the voice-feature reference
+   (`extractVoiceFeatures.m`), which is at an earlier developmental stage and likely
+   carries small unironed issues (time-shifts, normalizations). These are **matched
+   faithfully** like everything else; the entries record the doubt as an overview to
+   revisit when the reference stabilizes. Unlike entries 1–5 they generally **do not**
+   specify a correction — the point is to catalogue oddities, not fix them — except
+   where a fix happens to be knowable (a plain variable swap).
 
 A future reader must not misread a "quirk reproduced" entry as "the port differs
 here." It does not: it matches. And must not read "passes every unit test" as
@@ -327,3 +335,35 @@ stage-isolated parity and composition *sanity*, but not composition *exactness*.
 - **Not fixed by API:** `yaga()` deliberately has **no** residual-injection parameter
   to force 8 kHz to match — that would be shaping production code to a fixture's
   workaround. The limitation stands as documented instead.
+
+---
+
+## Feature observations — a developing reference
+
+The voice-feature reference (`vsaTools/extractVoiceFeatures.m`) replicates several
+papers (Patel 2011, Laukkanen 1996, Alku for NAQ) and is at an earlier
+developmental stage than `dypsagoi.m` — it likely carries small unironed issues.
+The port **matches it exactly** (golden-master parity is the only gate); these
+entries catalogue where the reference diverges from a published definition, sorted
+by whether the divergence is an *explained convention* or looks like an *unironed
+issue*. They are an overview to read when the reference stabilizes, and generally
+do **not** specify a correction — the reference is still developing, so the correct
+behaviour is not yet settled. A synthetic known-value check (not a gate) is what
+surfaces each one.
+
+### V1. F0 uses `fs/(period-1)`, not `fs/period`
+
+- **Where:** `voicekit.features.framework` (`cycle_framework`); reference
+  `extractVoiceFeatures.m`, the per-cycle loop.
+- **What the reference does:** the period is `T = len(nn) - 2` where `nn` is the
+  inclusive sample range of a cycle, and `f0 = fs/T`. For an interior cycle spanning
+  `period` samples between consecutive GCIs, `len(nn) = period + 1`, so `T = period - 1`
+  and `f0 = fs/(period-1)` — not `fs/period`.
+- **Surfaced by:** the synthetic constant-pitch check — closures every 160 samples at
+  16 kHz (true pitch 100 Hz) yield `f0 = fs/159 = 100.63 Hz`, a ~0.63 % overestimate.
+  Parity against the reference reproduces this faithfully; the synthetic check is what
+  shows it departs from `fs/period`.
+- **Definition sort:** unexplained — reads like an off-by-one in the period count
+  (`len(nn)-2`), but a defensible intent (excluding the two boundary GCI samples) can't
+  be ruled out. Reproduced faithfully; correction uncertain pending upstream.
+- **Status:** reproduced (feature observation, no correction specified).
