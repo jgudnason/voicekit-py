@@ -30,7 +30,7 @@ References:
 import numpy as np
 import numpy.typing as npt
 
-from voicekit.yaga._matlab_compat import matlab_round as _matlab_round
+from voicekit._matlab_compat import matlab_round as _matlab_round
 
 
 def _falling_crossings(x: npt.NDArray[np.float64]) -> npt.NDArray[np.int64]:

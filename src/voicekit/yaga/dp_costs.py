@@ -35,7 +35,7 @@ import numpy as np
 import numpy.typing as npt
 import scipy.signal
 
-from voicekit.yaga._matlab_compat import matlab_round
+from voicekit._matlab_compat import matlab_round
 
 # Structural constants, hardcoded in the reference (not tunable parameters).
 _BOUNDARY_MARGIN_S = 0.01  # candidates within this of either signal end are dropped
