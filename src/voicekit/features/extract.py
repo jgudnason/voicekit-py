@@ -9,6 +9,7 @@ import numpy as np
 import numpy.typing as npt
 
 from voicekit.features.config import FeaturesConfig
+from voicekit.features.flow import flow_statistics
 from voicekit.features.framework import cycle_framework
 from voicekit.features.result import VoiceFeatures
 
@@ -24,16 +25,19 @@ def extract_voice_features(
 
     ``u`` is the glottal flow, ``uu`` its derivative, ``gci`` the 0-based closure
     instants (as `GciResult.gci`). Returns one row per glottal cycle, aligned to
-    ``gci``. (This build populates the framework fields; the flow-statistic,
+    ``gci``. (This build populates the framework and flow-statistic fields; the
     timing and spectral fields land with their groups and are ``NaN`` for now.)
     """
     cfg = config if config is not None else FeaturesConfig()
     u = np.asarray(u, dtype=np.float64)
+    uu = np.asarray(uu, dtype=np.float64)
     gci = np.atleast_1d(np.asarray(gci)).astype(np.int64)
     n = gci.size
 
     # The reference works 1-based; our gci is 0-based (GciResult convention).
-    raw_f0, raw_framek, raw_vuv = cycle_framework(gci + 1, u.size, fs, cfg)
+    gci_1based = gci + 1
+    raw_f0, raw_framek, raw_vuv = cycle_framework(gci_1based, u.size, fs, cfg)
+    raw_mfdr, raw_pa, raw_naq = flow_statistics(u, uu, gci_1based, fs, cfg)
 
     # Shape (d): drop the left-edge non-cycle (raw[0]); rows 1: align to gci.
     unfilled = np.full(n, np.nan)
@@ -41,10 +45,10 @@ def extract_voice_features(
         f0=raw_f0[1:],
         framek=(raw_framek[1:] - 1).astype(np.int64),  # 1-based -> 0-based
         vuv=raw_vuv[1:] == 1.0,
-        mfdr=unfilled.copy(),
+        mfdr=raw_mfdr[1:],
+        pa=raw_pa[1:],
+        naq=raw_naq[1:],
         cq=unfilled.copy(),
-        pa=unfilled.copy(),
-        naq=unfilled.copy(),
         h1h2=unfilled.copy(),
         hrf=unfilled.copy(),
         qoq=unfilled.copy(),
