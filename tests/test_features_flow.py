@@ -102,5 +102,5 @@ def test_extract_fills_flow_fields(name):
     np.testing.assert_allclose(vf.mfdr, d["feat_mfdr"][1:])  # left-edge dropped
     np.testing.assert_allclose(vf.pa, d["feat_pa"][1:])
     np.testing.assert_allclose(vf.naq, d["feat_naq"][1:])
-    for still_nan in ("cq", "qoq", "h1h2", "hrf"):
+    for still_nan in ("h1h2", "hrf"):
         assert np.all(np.isnan(getattr(vf, still_nan))), still_nan

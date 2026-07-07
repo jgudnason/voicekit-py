@@ -98,8 +98,7 @@ def test_extract_shape_is_gci_aligned(name):
     np.testing.assert_allclose(vf.f0, d["feat_f0"][1:])
     np.testing.assert_array_equal(vf.framek, d["feat_framek"][1:].astype(np.int64) - 1)
     np.testing.assert_array_equal(vf.vuv, d["feat_vuv"][1:] == 1.0)
-    # Framework fields are populated; timing/spectral groups are NaN placeholders.
-    assert np.all(np.isnan(vf.cq)) and np.all(np.isnan(vf.qoq))
+    # Framework fields are populated; the spectral group is a NaN placeholder.
     assert np.all(np.isnan(vf.h1h2)) and np.all(np.isnan(vf.hrf))
 
 

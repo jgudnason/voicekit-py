@@ -16,8 +16,9 @@ framework period ``T = len(nn)-2``, so NAQ inherits observation V1's
 
 The reference additionally zeroes all three when no open phase is found
 (``O1==0``); that couples them to the timing machinery and is applied at
-orchestration once the timing group provides ``O1``. The fixtures never take that
-branch, so the plain formulas reproduce them exactly here.
+orchestration once the timing group provides ``O1`` (see REFERENCE_NOTES.md
+"Coverage gaps" C4). The fixtures never take that branch, so the plain formulas
+reproduce them exactly here.
 
 Reference: ``vsaTools/extractVoiceFeatures.m``; reimplemented, not ported.
 """

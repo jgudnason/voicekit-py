@@ -299,6 +299,33 @@ path, to make going and finding it deliberate rather than incidental.
   row on the chosen path at `k >= 2`, giving the selected-path set-equality a
   non-empty spurt set to separate.
 
+### C4. Feature timing: the `O1==0` no-open-phase zeroing
+
+- **Where:** `voicekit.features.timing` (`timing_statistics`, the `O1==0` branch);
+  reference `extractVoiceFeatures.m`, the per-cycle loop. Subsumes the flow group's
+  deferred note: this one branch governs **five** features at once.
+- **What the reference does:** when `openclosetimings` finds no open phase
+  (`openPeriods` returns no rising edge, so `O1==0`), the reference zeroes the cycle's
+  `cq`, `qoq`, `mfdr`, `pa`, `naq` — but **not** `f0` (it still sets `f0 = 1/Ttime`),
+  nor `vuv`/`framek`/`h1h2`/`hrf`. So the degenerate branch masks the five
+  timing/flow features and leaves the framework and spectral ones untouched.
+- **Why the fixtures miss it:** every cycle on all three fixtures has a clear open
+  phase — the 5%-of-peak threshold crossing survives the median filter on all of
+  them (0 cycles with `cq==0`, the `O1==0` signature). The clean synthetic vowels
+  simply never produce a fully-closed / degenerate cycle, so the zeroing is
+  reproduced from the source but never taken on captured data. (`timing_statistics`
+  currently owns the branch; the flow group's identical zeroing is applied at
+  orchestration once `O1` is shared — the same untraversed path either way.)
+- **Exercised by an orthogonal unit test, not a fixture:** `test_features_timing.py`
+  constructs a flat cycle (no threshold crossing) and asserts `open_close_timings`
+  returns `O1==0` and `timing_statistics` zeroes `cq`/`qoq`. So the branch is not
+  untested — but "bit-exact on all three fixtures" does not cover it.
+- **What would exercise it on real data:** a cycle with no detectable open phase — a
+  fully-closed or near-silent glottal cycle, or one whose flow pulse is so small or
+  noisy that no sample clears 5% of the (shifted) peak after median filtering. Creaky
+  or breathy phonation and inter-word closures in corpus speech are the likely first
+  exercisers.
+
 ---
 
 ## Fixture limitations — captures that don't reproduce end-to-end
@@ -366,4 +393,38 @@ surfaces each one.
 - **Definition sort:** unexplained — reads like an off-by-one in the period count
   (`len(nn)-2`), but a defensible intent (excluding the two boundary GCI samples) can't
   be ruled out. Reproduced faithfully; correction uncertain pending upstream.
+- **Status:** reproduced (feature observation, no correction specified).
+
+### V2. QOQ divides a duration by an index: `qoq = (C2-O2)/O2`
+
+- **Where:** `voicekit.features.timing` (`timing_statistics`); reference
+  `extractVoiceFeatures.m`, the per-cycle loop.
+- **What the reference does:** the quasi-open quotient is
+  `qoq = (C2-O2)/O2`, where `O2`/`C2` are the start/end **sample indices** of the
+  quasi-open phase within the cycle. The numerator `C2-O2` is the quasi-open
+  *duration* (samples); the denominator `O2` is an absolute *index* (the quasi-open
+  onset, `O2_sub + O1`), **not a duration**. Per Laukkanen (1996) the QOQ is the
+  quasi-open duration normalized by a duration — the period `T` (or the cycle
+  length) — so the denominator is dimensionally wrong: a duration over an index.
+- **Reference self-comment (verbatim):** the reference's own author noticed the
+  symptom and left a runtime warning rather than fixing the denominator —
+  ```
+  if any(qoq>1)
+      disp(['Warning: Cycle ' num2str(find(qoq>1)) ' has QOQ>1'])
+  end;
+  ```
+  This is what makes V2 *author-known-but-unironed* rather than merely suspected.
+- **V2 is the mechanism behind the scattered QOQ>1 values.** A genuine quotient of
+  durations is bounded in `(0, 1)`; here `qoq > 1 ⟺ C2 > 2·O2` (the quasi-open phase
+  starts early enough — small onset index `O2` — that its duration exceeds it). The
+  fixtures show these directly: 3 cycles on `vowel_f0100_16k` (up to **1.958**), 1 on
+  `vowel_glide_16k`, 2 on `vowel_f0120_8k`. **These are not an edge artifact** — they
+  are V2 doing exactly what its denominator forces, so a future reader must not
+  re-investigate the `QOQ>1` cycles as a boundary bug; they trace entirely to the
+  index denominator.
+- **Definition sort:** unexplained — an index in a denominator where a duration
+  belongs reads like an unironed issue, corroborated by the author's own warning.
+  Reproduced faithfully (golden parity is the only gate). The Laukkanen-correct
+  denominator (a duration, e.g. `T`) is *knowable* but the reference is still
+  developing, so no correction is specified.
 - **Status:** reproduced (feature observation, no correction specified).
