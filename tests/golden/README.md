@@ -32,6 +32,10 @@ numerical target.
   - `capture_one.m` — runs the instrumented detector on one fixture,
     optionally substituting a clean residual via `VK_OVERRIDE_UDASH`.
   - `capture_golden.py` — orchestrates instrument → run → convert to `.npz`.
+  - `capture_features.py` / `capture_features.m` — a *black-box* capture of the
+    `vsaTools` `extractVoiceFeatures` outputs (step 6): the function is called
+    directly and its returns saved, so none of the instrument/SHA machinery above
+    applies. Reads `udash`/`gci`/`fs` from each fixture, adds the `feat_*` arrays.
 
 ## Inputs
 
@@ -176,3 +180,24 @@ terms plus the closed-phase term. Piece 4 should reproduce all six pieces,
 validating the five weighted terms against `vus_dp_mycost` (unweighted, as
 captured — the reference divides each back out by its weight) and the
 closed-phase term against `aencost`.
+
+**Voice features** (step 6; from a black-box run of `vsaTools`
+`extractVoiceFeatures(u, uu, fs, gci)`, with `uu = udash`, `gci` the fixture's
+final GCIs, and the derived flow `u = filter(a, b, udash)` per `testSingleFile.m`
+— `b = [1, -exp(-2π·10/fs)]`, `a = sqrt(1/sum(b²))`; this is *not*
+`iaif.glottal_flow`, which uses a different leak). Captured in the **raw
+reference form**: each feature array has length `len(gci)+1` — the reference
+brackets the cycle loop as `gciP = [1, gci, len(u)]`, so there are two extra
+**boundary-partial cycles** (before the first GCI and after the last), and
+degenerate cycles are written as `0`. The boundary cycles carry *real* values
+(not always degenerate), so the eventual cleaned per-cycle view cannot simply
+drop them.
+- `feat_u` `(N,)` — the derived glottal flow (intermediate arbiter; certify
+  `filter(a,b,udash)` against it before building features on it).
+- `feat_mfdr`, `feat_cq`, `feat_pa`, `feat_naq`, `feat_f0`, `feat_h1h2`,
+  `feat_hrf`, `feat_qoq` `(len(gci)+1,)` — maximum flow declination rate, closed
+  quotient, pulse amplitude, normalized amplitude quotient, F0, H1–H2, harmonic
+  richness factor, quasi-open quotient (all per cycle, raw reference values).
+- `feat_framek` `(len(gci)+1,)` — each cycle's centre sample index.
+- `feat_vuv` `(len(gci)+1,)` — per-cycle voiced flag (frame length in the voiced
+  range); note the boundary-partial cycles are usually, but not always, `0`.
