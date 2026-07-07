@@ -166,26 +166,46 @@ and the entry moves to the Divergences section.
 - **Status:** reproduced (deliberate departure from textbook; intended behaviour,
   **not** a correction candidate).
 
-### 5. GOI post-processing (placeholder — lands when GOI is implemented)
+### 5. GOI post-processing pairing (`postGOI`)
 
-- **Where:** GOI selection / post-processing (not yet ported; GCI-first, GOI
-  deferred). Reference `dypsagoi.m`, GOI post-processing step.
-- **What the reference does:** the GOI post-processing does not reliably produce
-  one GOI per GCI; this is the unresolved, self-documented bug already
+- **Where:** GOI post-processing in `voicekit.yaga.detector` (`_goi_postprocess`);
+  reference `dypsagoi.m`, the `postGOI` block. The unresolved bug already
   acknowledged in [DESIGN.md](DESIGN.md) §1.
+- **What the reference does:** after the GOI dynamic program produces opening
+  candidates, `postGOI` tries to enforce strict `GCI-GOI-GCI-GOI` alternation. It
+  interleaves GCIs (label +1) and GOIs (−1) sorted by position and uses
+  `fftfilt([1 1], k)` as a 2-tap adjacency detector: where two GCIs are adjacent
+  (sum +2, a closure with no opening after it) it **adds** an opening at
+  `gci_position + previous-opening-period`; where two GOIs are adjacent (sum −2)
+  it **removes** the stray one.
 - **Reference self-comment (verbatim):**
   ```
   % NEEDS FIXING - DOESN'T ALWAYS GIVE EQUAL GCIS AS GOIS
   ```
-- **Port:** not yet implemented. This placeholder ties DESIGN.md §1's existing
-  acknowledgement to this tracking doc; it becomes a full entry (with the port's
-  handling and a status) when GOI is ported.
-- **Validation-phase note:** the verbatim comment gives a specific, testable
-  symptom — the GOI count does not always equal the GCI count. That is the
-  acceptance test for the eventual fix: a corrected version should produce paired
-  GCIs/GOIs (equal counts, interleaved), the reproduced version will not. The
-  symptom is already the test.
-- **Status:** placeholder — entry lands when GOI is implemented.
+- **Two distinct symptoms, and their coverage:**
+  - *`-1` sentinels* — when a GCI needs an opening added but there is **no previous
+    opening** (signal start), the "closest previous GOI" lookup returns empty and
+    the MATLAB insertion `[[] ; -1]` collapses to a scalar `-1`, which is broadcast
+    to both the position and label rows — so an opening at position `-1` is emitted.
+    Fires on **all three** fixtures (2, 2, 1 sentinels).
+  - *count mismatch* — the add/remove operations do not balance, so
+    `len(goi) != len(gci)`. Fires on **glide only** among these three (64 vs 63).
+- **Port:** reproduces the pairing exactly — the raw `goi` matches the capture
+  including the sentinels and the mismatch. Quarantined behind
+  `YagaConfig.goi_postprocess` (default `True`). **`True` reproduces this bug for
+  golden parity; `False` skips the pairing step entirely (raw sorted GOI-DP
+  output) — which is *not* the fix: it drops the alternation-enforcement feature
+  along with the bug. The correct behaviour (boundary-aware pairing) is in neither
+  branch** and is validation-phase work. The public `GciResult.goi` never carries
+  the `-1` sentinels: they are dropped when the raw sequence is aligned to a
+  per-cycle representation (`NaN` for an unpaired cycle); only the raw parity path
+  reproduces them.
+- **Fix spec (the mechanism is the spec, as with entry 3):** handle the
+  no-previous-opening boundary so no invalid position is emitted; acceptance = no
+  `-1` sentinels and `len(gci) == len(goi)`.
+- **Status:** reproduced (validation-phase correction candidate). Symptoms are
+  exercised (not a coverage gap): sentinels on all three fixtures, count mismatch
+  on glide.
 
 ---
 

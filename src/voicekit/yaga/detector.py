@@ -37,6 +37,9 @@ from voicekit.yaga.group_delay import GroupDelayConfig, energy_weighted_group_de
 from voicekit.yaga.phase_slope import phase_slope_projection
 from voicekit.yaga.swt import multiscale_product, negative_cube_root
 
+# GOI positions the reference's postGOI step emits when it cannot pair (see below).
+_GOI_SENTINEL = -1.0
+
 
 def _default_iaif_config() -> IaifConfig:
     # dypsagoi calls iaif(s, fs, 20, 4, 20, 1): vocal-tract order 20, glottal 4.
@@ -58,21 +61,118 @@ class YagaConfig:
     # Bug-compatibility switch for the traceback: see dp_traceback.traceback and
     # REFERENCE_NOTES entry 3. True reproduces the reference bug for parity.
     traceback_force_penultimate: bool = True
+    # GOI post-processing (the reference's postGOI GCI/GOI pairing). See
+    # REFERENCE_NOTES entry 5. True reproduces the reference (including its bug) for
+    # parity; False *skips* the buggy pairing (raw GOI-DP output) -- which is NOT the
+    # fix, only its absence. The correct boundary-aware pairing is in neither branch.
+    goi_postprocess: bool = True
 
 
 @dataclass(frozen=True)
 class GciResult:
     """Output of `yaga`.
 
-    ``gci`` are 0-based sample positions of glottal closures. ``goi`` is None
-    (GOI detection is deferred; this pipeline is GCI-first). ``candidates`` is
-    the assembled, classified candidate set (positions and zero-crossing /
-    projected flags) the DP chose from.
+    ``gci`` are 0-based sample positions of glottal closures. ``goi`` is a
+    per-cycle-aligned companion: ``goi[i]`` is the 0-based glottal *opening*
+    within the cycle that begins at ``gci[i]``, or ``NaN`` if no opening was
+    detected for that cycle (unvoiced transitions, creak, or -- see
+    REFERENCE_NOTES entry 5 -- a cycle the reference's buggy GOI pairing failed
+    to fill). It is ``float`` so absence is ``NaN`` rather than a poison index;
+    a consumer must check ``np.isnan(goi[i])`` before using it. ``candidates`` is
+    the assembled, classified candidate set the DP chose from.
     """
 
     gci: npt.NDArray[np.int64]
-    goi: npt.NDArray[np.int64] | None
+    goi: npt.NDArray[np.float64]
     candidates: CandidateSet
+
+
+def _goi_postprocess(
+    gci: npt.NDArray[np.int64], goi_dp: npt.NDArray[np.int64]
+) -> npt.NDArray[np.float64]:
+    """Reference ``postGOI`` pairing: enforce GCI-GOI alternation. Reproduces its bug.
+
+    Interleaves GCIs (+1) and GOIs (-1) by position; where two GCIs are adjacent it
+    inserts an opening at ``gci + previous-opening-period``, and drops a stray
+    opening where two are adjacent. When there is no previous opening (signal
+    start) the insertion collapses to the reference's ``-1`` sentinel. See
+    REFERENCE_NOTES entry 5 -- the count mismatch and the sentinels are the bug,
+    reproduced for parity.
+    """
+    pos = np.concatenate([gci.astype(np.float64), goi_dp.astype(np.float64)])
+    lab = np.concatenate([np.ones(gci.size), -np.ones(goi_dp.size)])
+    order = np.argsort(pos, kind="stable")
+    pos, lab = pos[order], lab[order]
+
+    adj = lab.copy()
+    adj[1:] = lab[1:] + lab[:-1]  # fftfilt([1 1], lab): two adjacent same-label markers
+    add = np.where(adj > 0)[0]  # 1-based find(adj>0) - 1 == this 0-based index
+    add[add == 0] = 1
+    lab[np.where(adj < 0)[0]] = 0  # flag stray openings for removal
+
+    added = []
+    for pi in add:  # pi is a 1-based index into the interleaved arrays
+        prev = np.where(lab[:pi] == -1)[0]  # closest previous opening, 0-based
+        if prev.size == 0:
+            added.append(_GOI_SENTINEL)  # no previous opening -> reference emits -1
+        else:
+            i1 = prev[-1] + 1  # 1-based index of that opening
+            nb = i1 if i1 > 1 else i1 + 1  # neighbour to measure the period against
+            added.append(pos[pi - 1] + (pos[nb - 1] - pos[nb - 2]))
+    kept = pos[lab == -1]
+    return np.sort(np.concatenate([kept, np.array(added, dtype=np.float64)]))
+
+
+def _detect_goi_raw(
+    positions_1based: npt.NDArray[np.int64],
+    flags: npt.NDArray[np.int64],
+    phase_slope: npt.NDArray[np.float64],
+    cencost: npt.NDArray[np.float64],
+    gci_dp: npt.NDArray[np.int64],
+    gci_refined: npt.NDArray[np.int64],
+    residual: npt.NDArray[np.float64],
+    fnwav: npt.NDArray[np.float64],
+    fs: float,
+    config: "YagaConfig",
+) -> npt.NDArray[np.float64]:
+    """Raw GOI sequence (matching the reference's ``goi``, sentinels included).
+
+    GOI candidates are the assembled candidates *not* chosen as GCIs; the same DP
+    forward pass and traceback run on them with the causal closed-phase cost
+    ``cencost`` (where GCI used the anticausal ``aencost``). Then the ``postGOI``
+    pairing runs, unless ``goi_postprocess`` is off.
+    """
+    leftover = ~np.isin(positions_1based.astype(np.int64), np.asarray(gci_dp, np.int64))
+    idx = np.nonzero(leftover)[0]
+    goic = positions_1based[idx]
+    frob_cost = frobenius_energy_cost(goic.astype(np.int64) - 1, fnwav, fs, config.frobenius)
+    result = forward_pass(
+        goic, flags[idx], residual, phase_slope[idx], frob_cost, cencost[idx], fs, config.dp
+    )
+    goi_dp = traceback(result, goic, fs, config.dp, config.traceback_force_penultimate)
+    if config.goi_postprocess:
+        return _goi_postprocess(gci_refined, goi_dp)
+    return np.sort(goi_dp.astype(np.float64))
+
+
+def _align_goi_to_cycles(
+    gci_1based: npt.NDArray[np.int64], raw_goi: npt.NDArray[np.float64]
+) -> npt.NDArray[np.float64]:
+    """Pair each GCI cycle with its opening; drop sentinels; return 0-based, NaN for absent.
+
+    ``goi[i]`` is the opening within ``(gci[i], gci[i+1])`` (or after the last GCI
+    for the final cycle), or NaN if none. Sentinels and any opening before the
+    first GCI fall below ``gci[0]`` and are never assigned, so they drop out.
+    """
+    gci = np.sort(np.asarray(gci_1based, dtype=np.int64))
+    raw = np.sort(np.asarray(raw_goi, dtype=np.float64))
+    out = np.full(gci.size, np.nan)
+    for i in range(gci.size):
+        upper = gci[i + 1] if i + 1 < gci.size else np.inf
+        in_cycle = raw[(raw > gci[i]) & (raw < upper)]
+        if in_cycle.size:
+            out[i] = in_cycle[0]  # at most one per cycle (verified on the fixtures)
+    return out - 1  # 1-based positions -> 0-based; NaN stays NaN
 
 
 def yaga(signal: Signal, config: YagaConfig | None = None) -> GciResult:
@@ -101,7 +201,7 @@ def yaga(signal: Signal, config: YagaConfig | None = None) -> GciResult:
     # candidate positions directly.
     fnwav = frobenius_energy_function(s_used, fs, cfg.frobenius)
     frob_cost = frobenius_energy_cost(candidates.positions, fnwav, fs, cfg.frobenius)
-    aencost, _cencost = closed_phase_cost(udash, candidates.positions)
+    aencost, cencost = closed_phase_cost(udash, candidates.positions)  # anticausal / causal
 
     # The DP forward pass and traceback extract windows as residual[(pos-1)+...],
     # i.e. they need 1-based positions -- so shift the 0-based candidate positions
@@ -120,7 +220,22 @@ def yaga(signal: Signal, config: YagaConfig | None = None) -> GciResult:
     gci_dp = traceback(
         result, positions_1based, fs, cfg.dp, cfg.traceback_force_penultimate
     )
+    gci = refine_gcis(gci_dp, crnmp, cfg.refine_tol, cfg.refine_min_sep)  # 1-based
 
-    # Peak-refinement works in the same 1-based frame; return 0-based GCIs.
-    gci = refine_gcis(gci_dp, crnmp, cfg.refine_tol, cfg.refine_min_sep)
-    return GciResult(gci=gci - 1, goi=None, candidates=candidates)
+    # GOI: the leftover candidates through the same DP with the causal closed-phase
+    # cost, then the reference's pairing. The raw goi (with sentinels) is cleaned to
+    # the per-cycle representation for the public result.
+    raw_goi = _detect_goi_raw(
+        positions_1based,
+        candidates.is_zero_crossing.astype(np.int64),
+        candidates.phase_slope_cost,
+        cencost,
+        gci_dp,
+        gci,
+        udash,
+        fnwav,
+        fs,
+        cfg,
+    )
+    goi = _align_goi_to_cycles(gci, raw_goi)
+    return GciResult(gci=gci - 1, goi=goi, candidates=candidates)

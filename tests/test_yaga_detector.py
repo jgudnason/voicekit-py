@@ -20,7 +20,7 @@ import numpy as np
 import pytest
 
 from voicekit.io import read_wav
-from voicekit.yaga.detector import GciResult, YagaConfig, yaga
+from voicekit.yaga.detector import GciResult, YagaConfig, _align_goi_to_cycles, yaga
 
 GOLDEN = Path(__file__).resolve().parent / "golden"
 FIXTURES = Path(__file__).resolve().parents[1] / "data" / "fixtures"
@@ -28,16 +28,19 @@ FIXTURES = Path(__file__).resolve().parents[1] / "data" / "fixtures"
 
 @pytest.mark.parametrize("name", ["vowel_f0100_16k", "vowel_glide_16k"])
 def test_end_to_end_matches_capture_16k(name):
-    """The full pipeline from the raw signal reproduces the captured GCIs (bit-exact).
+    """The full pipeline from the raw signal reproduces the captured GCIs and GOIs.
 
     This is the composition proof and the frame-plumbing guard: IAIF -> SWT ->
-    group delay -> psp -> assembly -> costs -> forward -> traceback -> refine, all
-    live, matching the captured final gci to the sample.
+    group delay -> psp -> assembly -> costs -> forward -> traceback -> refine (and
+    the GOI branch), all live, matching the capture to the sample. GOIs are checked
+    against the captured raw goi cleaned to the same per-cycle form.
     """
     d = np.load(GOLDEN / f"{name}.npz")
     result = yaga(read_wav(FIXTURES / f"{name}.wav"))
     # GciResult.gci is 0-based; the capture is 1-based.
     np.testing.assert_array_equal(result.gci + 1, d["gci"].astype(np.int64))
+    expected_goi = _align_goi_to_cycles(d["gci"].astype(np.int64), d["goi"].astype(np.float64))
+    np.testing.assert_array_equal(result.goi, expected_goi)  # equal_nan by default
 
 
 def test_end_to_end_8k_runs_and_is_sane():
@@ -55,13 +58,23 @@ def test_end_to_end_8k_runs_and_is_sane():
     f0 = 8000.0 / np.median(intervals)
     assert 110.0 < f0 < 130.0  # target 120 Hz
     assert 50 < result.gci.size < 80  # ~0.6 s of voicing at 120 Hz
+    # GOIs are produced too, per-cycle aligned (one entry per GCI), openings falling
+    # inside their cycles; some cycles may be unfilled (NaN).
+    assert result.goi.shape == result.gci.shape
+    paired = ~np.isnan(result.goi)
+    assert paired.any()  # at least some cycles have an opening
+    assert np.all(result.goi[paired] > result.gci[paired])  # opening after closure
 
 
 def test_result_fields():
-    """GciResult carries 0-based GCIs, no GOI (deferred), and the classified candidates."""
+    """GciResult carries 0-based GCIs, per-cycle GOIs (float, NaN for absent), and candidates."""
     result = yaga(read_wav(FIXTURES / "vowel_f0100_16k.wav"))
-    assert result.goi is None
     assert result.gci.min() >= 0  # 0-based
+    # GOI is a float array aligned to gci, with NaN (never a -1 sentinel) for absence.
+    assert result.goi.dtype == np.float64
+    assert result.goi.shape == result.gci.shape
+    assert np.isnan(result.goi).any()  # f0100 has unfilled cycles
+    assert result.goi[~np.isnan(result.goi)].min() >= 0  # no -1 poison leaks out
     # Classified candidates: positions plus zero-crossing / projected flags.
     assert result.candidates.positions.shape == result.candidates.is_zero_crossing.shape
     assert result.candidates.is_zero_crossing.any()  # some zero-crossing candidates
