@@ -20,6 +20,14 @@ class VoiceFeatures:
     than a poison value (a consumer checks ``np.isnan`` before use); ``framek``
     (cycle-centre sample) and ``vuv`` (voiced flag) are always defined.
 
+    ``framek`` is 0-based, the mirror of the 0-based ``gci`` input: everything
+    crossing the public boundary is 0-based, and the reference's 1-based cycle
+    frame is confined to ``iter_cycle_segments``. framek is *computed* 1-based
+    there (centre of the 1-based interval) and converted back once on output, so
+    the input ``+1`` and this output ``-1`` act on different quantities (gci in,
+    framek out) and are each independently load-bearing -- one convention applied
+    at both ends of the boundary, not a cancelling pair.
+
     .. warning::
        ``h1h2`` and ``hrf`` are **crossed**: the reference stores its two spectral
        outputs under swapped names, and the port reproduces that for golden parity.

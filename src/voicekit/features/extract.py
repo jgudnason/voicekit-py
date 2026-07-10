@@ -35,12 +35,12 @@ def extract_voice_features(
     uu = np.asarray(uu, dtype=np.float64)
     gci = np.atleast_1d(np.asarray(gci)).astype(np.int64)
 
-    # The reference works 1-based; our gci is 0-based (GciResult convention).
-    gci_1based = gci + 1
-    raw_f0, raw_framek, raw_vuv = cycle_framework(gci_1based, u.size, fs, cfg)
-    raw_mfdr, raw_pa, raw_naq = flow_statistics(u, uu, gci_1based, fs, cfg)
-    raw_cq, raw_qoq = timing_statistics(u, gci_1based, fs, cfg)
-    raw_h1h2, raw_hrf = spectral_statistics(u, gci_1based, fs, cfg)
+    # gci is 0-based (GciResult convention) throughout; the single conversion into
+    # the reference's 1-based cycle frame lives in iter_cycle_segments (gciP=[1,gci+1,n]).
+    raw_f0, raw_framek, raw_vuv = cycle_framework(gci, u.size, fs, cfg)
+    raw_mfdr, raw_pa, raw_naq = flow_statistics(u, uu, gci, fs, cfg)
+    raw_cq, raw_qoq = timing_statistics(u, gci, fs, cfg)
+    raw_h1h2, raw_hrf = spectral_statistics(u, gci, fs, cfg)
 
     # Shape (d): drop the left-edge non-cycle (raw[0]); rows 1: align to gci.
     return VoiceFeatures(

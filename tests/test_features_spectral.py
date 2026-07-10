@@ -39,7 +39,7 @@ def test_spectral_matches_capture(name):
     """Raw h1h2/hrf reproduce the captured (crossed) reference arrays."""
     d = np.load(GOLDEN / f"{name}.npz")
     fs = float(d["input_fs"])
-    gci = d["gci"].astype(np.int64)  # 1-based, as the reference uses
+    gci = d["gci"].astype(np.int64) - 1  # 0-based (GciResult convention)
     h1h2, hrf = spectral_statistics(d["feat_u"], gci, fs)
 
     np.testing.assert_allclose(h1h2, d["feat_h1h2"], rtol=1e-11, atol=1e-13)
@@ -55,7 +55,7 @@ def test_capture_is_stored_crossed():
     """
     d = np.load(GOLDEN / "vowel_f0100_16k.npz")
     fs = float(d["input_fs"])
-    gci = d["gci"].astype(np.int64)
+    gci = d["gci"].astype(np.int64) - 1  # 0-based (GciResult convention)
     h1h2_out, hrf_out = spectral_statistics(d["feat_u"], gci, fs)  # already crossed
     # h1h2_out holds HRF and matches captured "h1h2"; it does NOT match captured "hrf".
     assert np.allclose(h1h2_out, d["feat_h1h2"], rtol=1e-11, atol=1e-13)

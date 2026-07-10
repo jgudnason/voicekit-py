@@ -49,7 +49,7 @@ def test_timing_matches_capture(name):
     """Raw cq/qoq reproduce the captured reference arrays (proves the kernel too)."""
     d = np.load(GOLDEN / f"{name}.npz")
     fs = float(d["input_fs"])
-    gci = d["gci"].astype(np.int64)  # 1-based, as the reference uses
+    gci = d["gci"].astype(np.int64) - 1  # 0-based (GciResult convention)
     cq, qoq = timing_statistics(d["feat_u"], gci, fs)
 
     np.testing.assert_allclose(cq, d["feat_cq"], rtol=1e-12, atol=1e-14)
@@ -99,7 +99,7 @@ def test_synthetic_shift_makes_thresholding_pedestal_invariant():
     cycle = _trapezoid(peak, closed, ramp, plateau, tail)
     period = cycle.size
     u = np.tile(cycle, 4)
-    gci = np.array([period, 2 * period, 3 * period], dtype=np.int64)  # 1-based closures
+    gci = np.array([period, 2 * period, 3 * period], dtype=np.int64) - 1  # 0-based closures
 
     cq0, qoq0 = timing_statistics(u, gci, fs)
     cq_ped, qoq_ped = timing_statistics(u + 5.0, gci, fs)  # whole-signal pedestal
@@ -121,7 +121,7 @@ def test_synthetic_no_open_phase_zeroes_cq_qoq():
 
     fs, period = 16000.0, 200
     u = np.tile(flat, 4)
-    gci = np.array([period, 2 * period, 3 * period], dtype=np.int64)
+    gci = np.array([period, 2 * period, 3 * period], dtype=np.int64) - 1  # 0-based closures
     cq, qoq = timing_statistics(u, gci, fs)
     assert cq[1] == 0.0 and qoq[1] == 0.0
 

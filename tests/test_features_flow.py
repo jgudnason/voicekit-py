@@ -40,7 +40,7 @@ def test_flow_statistics_match_capture(name):
     """Raw mfdr/pa/naq reproduce the captured reference arrays."""
     d = np.load(GOLDEN / f"{name}.npz")
     fs = float(d["input_fs"])
-    gci = d["gci"].astype(np.int64)  # 1-based, as the reference uses
+    gci = d["gci"].astype(np.int64) - 1  # 0-based (GciResult convention)
     mfdr, pa, naq = flow_statistics(d["feat_u"], d["udash"], gci, fs)
 
     np.testing.assert_allclose(mfdr, d["feat_mfdr"], rtol=1e-12, atol=1e-14)
@@ -63,7 +63,7 @@ def test_synthetic_naq_matches_alku_modulo_v1():
     fs, period = 16000.0, 160
     u = np.tile(_rosenberg_cycle(period), 4)  # several cycles for a clean interior
     uu = np.concatenate([[0.0], np.diff(u)]) * fs
-    gci = np.array([period, 2 * period, 3 * period], dtype=np.int64)  # 1-based closures
+    gci = np.array([period, 2 * period, 3 * period], dtype=np.int64) - 1  # 0-based closures
     _mfdr, _pa, naq = flow_statistics(u, uu, gci, fs)
 
     ref_naq = naq[1]  # interior cycle
@@ -78,7 +78,7 @@ def test_synthetic_mfdr_and_pa_known_values():
     fs, period = 16000.0, 160
     u = np.tile(_rosenberg_cycle(period), 4)
     uu = np.concatenate([[0.0], np.diff(u)]) * fs
-    gci = np.array([period, 2 * period, 3 * period], dtype=np.int64)
+    gci = np.array([period, 2 * period, 3 * period], dtype=np.int64) - 1  # 0-based closures
     mfdr, pa, _naq = flow_statistics(u, uu, gci, fs)
 
     a, b = period, 2 * period  # interior cycle [160, 320], trimmed nn

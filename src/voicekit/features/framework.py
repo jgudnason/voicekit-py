@@ -27,13 +27,16 @@ def iter_cycle_segments(
 ) -> Iterator[tuple[int, int, npt.NDArray[np.int64]]]:
     """Yield ``(a, b, nn)`` for each of the ``len(gci)+1`` reference intervals.
 
-    ``gci`` are 1-based sample indices. ``a``/``b`` are the untrimmed interval
-    bounds (``gciP[ig]``/``gciP[ig+1]``); ``nn`` is the 1-based sample range
-    trimmed to the signal interior (``0 < nn < n_samples``, dropping the final
-    sample as the reference does). The period is ``T = nn.size - 2``.
+    ``gci`` are 0-based sample indices (the `GciResult` convention). This is the
+    single place the reference's 1-based cycle frame is entered: the bracket is
+    ``gciP = [1, gci+1, len(u)]``, so the ``+1`` here is the one conversion of the
+    public 0-based indices into the reference frame. ``a``/``b`` are the untrimmed
+    interval bounds (``gciP[ig]``/``gciP[ig+1]``); ``nn`` is the 1-based sample
+    range trimmed to the signal interior (``0 < nn < n_samples``, dropping the
+    final sample as the reference does). The period is ``T = nn.size - 2``.
     """
     gci = np.atleast_1d(np.asarray(gci)).astype(np.int64)
-    bracketed = np.concatenate([[1], gci, [n_samples]])
+    bracketed = np.concatenate([[1], gci + 1, [n_samples]])  # gciP = [1, gci+1, len(u)]
     for ig in range(bracketed.size - 1):
         a, b = int(bracketed[ig]), int(bracketed[ig + 1])
         nn = np.arange(a, b + 1)  # 1-based inclusive (MATLAB a:b)
@@ -49,8 +52,8 @@ def cycle_framework(
 ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]]:
     """Raw per-interval ``(f0, framek, vuv)`` over the ``len(gci)+1`` intervals.
 
-    ``gci`` are 1-based sample indices (the reference frame); returns arrays of
-    length ``len(gci)+1`` in the raw reference form (``framek`` 1-based, ``vuv``
+    ``gci`` are 0-based sample indices (the `GciResult` convention); returns arrays
+    of length ``len(gci)+1`` in the raw reference form (``framek`` 1-based, ``vuv``
     as 0/1). The period is ``T = len(nn)-2`` and ``f0 = fs/T`` -- the reference's
     convention (see REFERENCE_NOTES, "Feature observations" V1: this makes ``f0``
     ``fs/(period-1)`` for interior cycles, not ``fs/period``).

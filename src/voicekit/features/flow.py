@@ -41,8 +41,9 @@ def flow_statistics(
 ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]]:
     """Raw per-interval ``(mfdr, pa, naq)`` over the ``len(gci)+1`` intervals.
 
-    ``u`` is the glottal flow, ``uu`` its derivative; ``gci`` are 1-based sample
-    indices. Returns arrays of length ``len(gci)+1`` (the plain formulas -- the
+    ``u`` is the glottal flow, ``uu`` its derivative; ``gci`` are 0-based sample
+    indices (the `GciResult` convention). Returns arrays of length ``len(gci)+1``
+    (the plain formulas -- the
     ``O1==0`` zeroing is applied downstream).
     """
     del config  # no tunable knobs for these extrema; signature kept for uniformity

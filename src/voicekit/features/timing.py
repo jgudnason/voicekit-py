@@ -123,8 +123,9 @@ def timing_statistics(
 ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
     """Raw per-interval ``(cq, qoq)`` over the ``len(gci)+1`` intervals.
 
-    ``u`` is the glottal flow; ``gci`` are 1-based sample indices. Returns arrays
-    of length ``len(gci)+1``. ``cq = O1/T`` (closed quotient); ``qoq =
+    ``u`` is the glottal flow; ``gci`` are 0-based sample indices (the `GciResult`
+    convention). Returns arrays of length ``len(gci)+1``. ``cq = O1/T`` (closed
+    quotient); ``qoq =
     (C2-O2)/O2`` (quasi-open quotient -- the ``O2`` denominator is the reference's,
     see REFERENCE_NOTES.md V2). Cycles with no open phase (``O1==0``) keep the
     initialized zero, matching the reference's zeroing.

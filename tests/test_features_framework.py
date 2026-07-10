@@ -34,7 +34,7 @@ def test_framework_matches_capture(name):
     """Raw f0/framek/vuv reproduce the captured reference arrays."""
     d = np.load(GOLDEN / f"{name}.npz")
     fs = float(d["input_fs"])
-    gci = d["gci"].astype(np.int64)  # 1-based, as the reference uses
+    gci = d["gci"].astype(np.int64) - 1  # 0-based (GciResult convention)
     f0, framek, vuv = cycle_framework(gci, d["feat_u"].size, fs)
 
     np.testing.assert_allclose(f0, d["feat_f0"], rtol=1e-12, atol=1e-12)
@@ -56,7 +56,7 @@ def test_synthetic_constant_pitch_certifies_framework():
     pitch is 100 Hz but the framework reports fs/159 = 100.63 Hz.
     """
     fs, period = 16000.0, 160
-    gci = np.arange(period, 20 * period + 1, period, dtype=np.int64)  # 1-based, evenly spaced
+    gci = np.arange(period, 20 * period + 1, period, dtype=np.int64) - 1  # 0-based, evenly spaced
     n_samples = int(gci[-1] + period)
     f0, _framek, vuv = cycle_framework(gci, n_samples, fs)
 
@@ -74,7 +74,7 @@ def test_synthetic_voicing_bounds():
     """A period outside the voiced F0 range is flagged unvoiced."""
     fs = 16000.0
     # Period ~1000 samples -> 16 Hz, below voicing_f0_min=40 -> unvoiced.
-    gci = np.arange(1000, 5001, 1000, dtype=np.int64)
+    gci = np.arange(1000, 5001, 1000, dtype=np.int64) - 1  # 0-based
     f0, _framek, vuv = cycle_framework(gci, int(gci[-1] + 1000), fs)
     assert np.all(vuv[1:-1] == 0.0)  # interior cycles are unvoiced (too low)
 

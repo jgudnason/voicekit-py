@@ -78,7 +78,8 @@ def spectral_statistics(
 ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
     """Raw per-interval ``(h1h2, hrf)`` over the ``len(gci)+1`` intervals.
 
-    ``u`` is the glottal flow; ``gci`` are 1-based sample indices. Returns arrays
+    ``u`` is the glottal flow; ``gci`` are 0-based sample indices (the `GciResult`
+    convention). Returns arrays
     matching the reference's **stored** arrays, i.e. **crossed** (V3): the returned
     ``h1h2`` holds the reference's HRF and the returned ``hrf`` holds H1-H2. Parity
     with the capture holds because both are swapped the same way.
