@@ -16,6 +16,15 @@ from voicekit.iaif import IaifConfig, IaifResult, iaif
 F0 = 100.0
 FORMANTS = [(500.0, 80.0), (1500.0, 120.0), (2500.0, 200.0)]
 
+# Explicit per-rate configs (config is now required; there is no bare default).
+# One vocal-tract pole per kHz, glottal order 4 -- the values the deleted
+# IaifConfig.for_fs produced, inlined so each test names its own orders.
+IAIF_BY_FS = {
+    8000: IaifConfig(vt_order1=8, glottal_order=4, vt_order2=8),
+    20000: IaifConfig(vt_order1=20, glottal_order=4, vt_order2=20),
+}
+IAIF_8K = IAIF_BY_FS[8000]
+
 
 def rosenberg_train(fs: int, f0: float, duration: float) -> np.ndarray:
     """Glottal flow as a train of Rosenberg pulses (open 40%, return 16%)."""
@@ -56,7 +65,7 @@ def peak_correlation(a: np.ndarray, b: np.ndarray, max_lag: int = 40) -> float:
 @pytest.mark.parametrize("fs", [8000, 20000])
 def test_recovers_glottal_flow_derivative(fs: int) -> None:
     signal, udash_true = synth_vowel(fs)
-    result = iaif(signal, IaifConfig.for_fs(fs))
+    result = iaif(signal, IAIF_BY_FS[fs])
     trim = slice(fs // 10, -fs // 10)  # discard edge effects
     corr = peak_correlation(result.glottal_flow_derivative[trim], udash_true[trim])
     # Probe runs achieve 0.99 (8k) / 0.95 (20k); assert with margin
@@ -66,7 +75,7 @@ def test_recovers_glottal_flow_derivative(fs: int) -> None:
 def test_suppresses_first_formant() -> None:
     fs = 8000
     signal, _ = synth_vowel(fs)
-    result = iaif(signal, IaifConfig.for_fs(fs))
+    result = iaif(signal, IAIF_BY_FS[fs])
     trim = slice(fs // 10, -fs // 10)
 
     def f1_to_f0_db(x: np.ndarray) -> float:
@@ -81,41 +90,35 @@ def test_suppresses_first_formant() -> None:
 
 def test_output_alignment_and_shapes() -> None:
     signal, _ = synth_vowel(8000)
-    result = iaif(signal)
+    result = iaif(signal, IAIF_8K)
     assert isinstance(result, IaifResult)
     assert len(result.glottal_flow_derivative) == signal.n_samples
     assert len(result.glottal_flow) == signal.n_samples
-    assert result.vocal_tract.shape == (len(result.frame_starts), 10 + 1)
+    assert result.vocal_tract.shape == (len(result.frame_starts), IAIF_8K.vt_order1 + 1)
 
 
 def test_flow_is_integrated_derivative() -> None:
     signal, _ = synth_vowel(8000)
-    result = iaif(signal)
+    result = iaif(signal, IAIF_8K)
     redone = scipy.signal.lfilter([1.0], [1.0, -0.95], result.glottal_flow_derivative)
     np.testing.assert_allclose(result.glottal_flow, redone, atol=1e-12)
 
 
 def test_highpass_can_be_disabled() -> None:
     signal, _ = synth_vowel(8000)
-    result = iaif(signal, IaifConfig(highpass=False))
+    result = iaif(signal, IaifConfig(vt_order1=8, glottal_order=4, vt_order2=8, highpass=False))
     assert len(result.glottal_flow_derivative) == signal.n_samples
-
-
-def test_for_fs_scales_vocal_tract_orders() -> None:
-    assert IaifConfig.for_fs(8000).vt_order1 == 8
-    assert IaifConfig.for_fs(20000).vt_order1 == 20
-    assert IaifConfig.for_fs(20000).glottal_order == 4
 
 
 def test_config_validation() -> None:
     with pytest.raises(ValueError, match="orders"):
-        IaifConfig(vt_order1=0)
+        IaifConfig(vt_order1=0, glottal_order=4, vt_order2=8)
     with pytest.raises(ValueError, match="Leak"):
-        IaifConfig(leak=1.0)
+        IaifConfig(vt_order1=8, glottal_order=4, vt_order2=8, leak=1.0)
     with pytest.raises(ValueError, match="odd"):
-        IaifConfig(hpf_taps=1024)
+        IaifConfig(vt_order1=8, glottal_order=4, vt_order2=8, hpf_taps=1024)
 
 
 def test_rejects_too_short_signal() -> None:
     with pytest.raises(ValueError, match="too short"):
-        iaif(Signal(samples=np.zeros(5), fs=8000))
+        iaif(Signal(samples=np.zeros(5), fs=8000), IAIF_8K)

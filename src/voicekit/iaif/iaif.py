@@ -33,14 +33,18 @@ from voicekit.signal import Signal
 class IaifConfig:
     """Parameters for `iaif`.
 
-    LPC orders follow Alku's 8 kHz recommendations by default (the MATLAB
-    letters: ``p``, ``g``, ``r``). For other rates use `IaifConfig.for_fs`,
-    which applies the usual one-pole-per-kHz rule for the vocal tract.
+    The three LPC orders (the reference's letters ``p``, ``g``, ``r`` -- first
+    vocal-tract, glottal-source, second vocal-tract) are **required**: there is no
+    single fs-independent correct order, so a default would silently mismatch the
+    caller's rate. For reference, ``iaif.m``'s function-signature arg-defaults are
+    10/4/10, but the only in-project caller (``dypsagoi`` via `YagaConfig`) fixes
+    **20/4/20 at every rate**, and Alku/Mark's presets (``iaif.m`` note 6) are
+    8/2/8 at 8 kHz and 20/4/20 at 20 kHz. Pick per your rate and cite the source.
     """
 
-    vt_order1: int = 10  # p: first vocal tract LPC order
-    glottal_order: int = 4  # g: glottal source LPC order
-    vt_order2: int = 10  # r: second vocal tract LPC order
+    vt_order1: int  # p: first vocal tract LPC order
+    glottal_order: int  # g: glottal source LPC order
+    vt_order2: int  # r: second vocal tract LPC order
     highpass: bool = True  # remove low-frequency drift before analysis
     hpf_cutoff: float = 60.0  # Hz, per Alku (1999)
     hpf_taps: int = 1025  # linear-phase FIR length (order 1024)
@@ -55,12 +59,6 @@ class IaifConfig:
             raise ValueError(f"Leak must be in (0, 1), got {self.leak}")
         if self.hpf_taps % 2 == 0:
             raise ValueError("hpf_taps must be odd (linear-phase highpass FIR)")
-
-    @classmethod
-    def for_fs(cls, fs: int) -> "IaifConfig":
-        """Vocal tract orders scaled as one pole per kHz (min 8)."""
-        vt = max(8, round(fs / 1000))
-        return cls(vt_order1=vt, vt_order2=vt)
 
 
 @dataclass(frozen=True)
@@ -77,7 +75,7 @@ def _leaky_integrate(x: npt.NDArray[np.float64], leak: float) -> npt.NDArray[np.
     return np.asarray(scipy.signal.lfilter([1.0], [1.0, -leak], x))
 
 
-def iaif(signal: Signal, config: IaifConfig | None = None) -> IaifResult:
+def iaif(signal: Signal, config: IaifConfig) -> IaifResult:
     """Estimate glottal flow and its derivative by IAIF.
 
     The twelve steps of Alku (1999): highpass; order-1 LPC and inverse
@@ -86,8 +84,11 @@ def iaif(signal: Signal, config: IaifConfig | None = None) -> IaifResult:
     vocal tract LPC; final inverse filter gives the flow derivative, and
     one more integration the flow. Every inverse filter is applied to the
     highpassed input signal, not to the previous stage's output.
+
+    ``config`` is required: the LPC orders are rate-dependent (see `IaifConfig`),
+    so there is no safe default to fall back on.
     """
-    cfg = config if config is not None else IaifConfig()
+    cfg = config
     fs = signal.fs
     x = signal.samples
 
