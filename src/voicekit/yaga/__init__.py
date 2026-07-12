@@ -1,6 +1,6 @@
 """YAGA: GCI/GOI detection, after DYPSA (Naylor, Kounoudes, Gudnason & Brookes, 2007)."""
 
-from voicekit.yaga.detector import GciResult, YagaConfig, yaga
+from voicekit.yaga.detector import GciResult, YagaConfig, YagaResult, yaga
 from voicekit.yaga.dp_costs import (
     CandidateSet,
     FrobeniusConfig,
@@ -52,6 +52,7 @@ __all__ = [
     "SwtResult",
     "WaveformSimilarityConfig",
     "YagaConfig",
+    "YagaResult",
     "assemble_candidates",
     "closed_phase_cost",
     "energy_weighted_group_delay",

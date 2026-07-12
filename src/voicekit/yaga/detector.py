@@ -87,6 +87,31 @@ class GciResult:
     candidates: CandidateSet
 
 
+@dataclass(frozen=True)
+class YagaResult:
+    """Output of `yaga`: the GCI/GOI detection plus the residual it ran on.
+
+    ``gcis`` is the `GciResult` (closures, openings, candidates). ``residual`` is the
+    IAIF glottal-flow derivative (``udash``) that the whole pipeline was computed
+    from, returned so a downstream stage -- e.g. feature extraction deriving the flow
+    ``u`` from ``udash`` -- can reuse the exact residual of this one IAIF run instead
+    of re-running IAIF and having to re-select an `IaifConfig` (which could silently
+    diverge; see the 10/4/10-vs-20/4/20 trap that made `IaifConfig` orders required).
+    The residual is *returned, never accepted*: yaga owns the single IAIF config site,
+    so a caller cannot inject a mismatched residual.
+    """
+
+    gcis: GciResult
+    residual: npt.NDArray[np.float64]  # udash: IAIF flow derivative, length == len(signal)
+
+    def __post_init__(self) -> None:
+        # Lock the residual read-only. yaga *returns* it and never accepts one, so a
+        # caller must not be able to forge it by in-place mutation -- frozen blocks
+        # rebinding the field, not writing through the array. yaga's residual owns its
+        # data (base is None), so clearing the writeable flag fully closes the door.
+        self.residual.flags.writeable = False
+
+
 def _goi_postprocess(
     gci: npt.NDArray[np.int64], goi_dp: npt.NDArray[np.int64]
 ) -> npt.NDArray[np.float64]:
@@ -175,8 +200,12 @@ def _align_goi_to_cycles(
     return out - 1  # 1-based positions -> 0-based; NaN stays NaN
 
 
-def yaga(signal: Signal, config: YagaConfig | None = None) -> GciResult:
-    """Detect glottal closure instants in ``signal`` with the DYPSA-derived pipeline."""
+def yaga(signal: Signal, config: YagaConfig | None = None) -> YagaResult:
+    """Detect glottal closure instants in ``signal`` with the DYPSA-derived pipeline.
+
+    Returns a `YagaResult`: the `GciResult` detection plus the IAIF ``residual`` the
+    pipeline ran on, so callers reuse that one residual rather than re-running IAIF.
+    """
     cfg = config if config is not None else YagaConfig()
     fs = float(signal.fs)
     s = np.asarray(signal.samples, dtype=np.float64)
@@ -238,4 +267,5 @@ def yaga(signal: Signal, config: YagaConfig | None = None) -> GciResult:
         cfg,
     )
     goi = _align_goi_to_cycles(gci, raw_goi)
-    return GciResult(gci=gci - 1, goi=goi, candidates=candidates)
+    gcis = GciResult(gci=gci - 1, goi=goi, candidates=candidates)
+    return YagaResult(gcis=gcis, residual=udash)
