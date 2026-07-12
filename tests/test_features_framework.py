@@ -107,6 +107,9 @@ def test_config_declares_all_knobs():
     cfg = FeaturesConfig()
     for knob in (
         "voicing_f0_min", "voicing_f0_max", "open_threshold", "quasi_open_level",
-        "medfilt_window", "preemph", "harmonic_limit_hz",
+        "medfilt_window", "harmonic_limit_hz",
     ):
         assert hasattr(cfg, knob), knob
+    # The glottal-flow integration cutoff (the reference's misnamed f_preemph) is NOT
+    # a FeaturesConfig knob: it belongs to derive_flow, which runs before extraction.
+    assert not hasattr(cfg, "preemph")

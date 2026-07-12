@@ -21,7 +21,9 @@ class FeaturesConfig:
     open_threshold: float = 0.05  # opThres: open-phase threshold, fraction of peak
     quasi_open_level: float = 0.5  # qoq_level: quasi-open threshold, fraction of peak
     medfilt_window: int = 7  # median-filter length for edge detection
-    # Derived glottal flow u = leaky-integrate(udash) at this frequency.
-    preemph: float = 10.0  # Hz
     # Spectral features (h1h2/hrf): harmonics considered up to this frequency.
     harmonic_limit_hz: float = 3000.0  # Hz
+    # NOTE: the glottal-flow integration cutoff (the reference's f_preemph) is NOT a
+    # field here -- deriving u from udash is done by `derive_flow` *before*
+    # `extract_voice_features` (the reference passes u in), so the cutoff is that
+    # function's argument, not a feature-extraction knob. See features/flow_derivation.
