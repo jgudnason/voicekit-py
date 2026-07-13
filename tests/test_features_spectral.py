@@ -88,7 +88,14 @@ def test_synthetic_definitions_on_internal_values():
 
 
 def test_synthetic_degenerate_returns_zero():
-    """Too few harmonics below the limit -> literal (0, 0), not NaN (REFERENCE_NOTES C5)."""
+    """Too few harmonics below the limit -> literal (0, 0), not NaN (REFERENCE_NOTES C5).
+
+    C5 trips on the partial *count* (f0 > 1500 Hz -> floor(3000/f0) <= 1), independent
+    of the segment's content or its open phase. It is orthogonal to C4 (the O1==0
+    timing/flow zeroing): a short period trips C5 here; a long-period no-open-phase
+    cycle trips C4 without tripping C5 (see the C4 decomposition test, where
+    number_partials = 37). The two degenerate paths never conflate.
+    """
     fs, period = 16000.0, 8  # f0=2000 Hz -> floor(3000/2000)=1 -> degenerate
     useg = np.cos(2 * np.pi * np.arange(period) / period)
     assert spectral_params(useg, period, fs, harmonic_limit=3000.0) == (0.0, 0.0)

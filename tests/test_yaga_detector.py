@@ -7,11 +7,13 @@ elsewhere). A single off-by-one there would leave every isolated stage test gree
 while breaking the pipeline, so the 16 kHz end-to-end match is the frame-plumbing
 guard.
 
-The 16 kHz fixtures run bit-exact: their captured `udash` is real IAIF output,
-which our IAIF reproduces exactly, so the whole pipeline matches the capture. The
-8 kHz fixture cannot -- its capture used a clean-residual injection around the
+On the 16 kHz fixtures the GCIs and GOIs match the capture **bit-exactly** (they are
+integer sample indices), and the IAIF `residual` matches the captured `udash` to
+floating-point epsilon (rel ~1e-12 -- not bitwise; the one join whose error is
+accumulated, BLAS-dependent linear algebra, so it asserts at rtol=1e-9). The 8 kHz
+fixture cannot match at all -- its capture used a clean-residual injection around the
 reference IAIF's 8 kHz NaN (see REFERENCE_NOTES "Fixture limitations"), which live
-IAIF does not reproduce -- so 8 kHz is checked for a sane result, not exact parity.
+IAIF does not reproduce -- so 8 kHz is checked for a sane result, not parity.
 """
 
 from pathlib import Path

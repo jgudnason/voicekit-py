@@ -215,6 +215,33 @@ and the entry moves to the Divergences section.
   exercised (not a coverage gap): sentinels on all three fixtures, count mismatch
   on glide.
 
+### 6. NAQ silent IEEE division when `dpeak == 0`
+
+- **Where:** `voicekit.features.flow` (`flow_statistics`), the `naq` division
+  `fac / (dpeak * t_time)`; reference `extractVoiceFeatures.m`, the per-cycle `else`
+  branch.
+- **What the reference does:** when a cycle *has* an open phase (`O1 != 0`) but its
+  flow derivative grazes zero at the minimum (`dpeak = -min(uuseg) == 0`), MATLAB
+  evaluates `fac/(dpeak*Ttime)` and returns `Inf` (for `fac > 0`) or `NaN` (for
+  `fac == 0`) — **silently**, MATLAB's `x/0` raising no warning. The reference has a
+  *defined* value on this path, so this is parity, not a degeneracy to invent a
+  sentinel for.
+- **Port:** reproduces the value exactly (numpy's IEEE division gives the same
+  `Inf`/`NaN`). The only divergence is diagnostic — numpy *warns* where MATLAB is
+  silent — so the division is wrapped in `np.errstate(divide="ignore",
+  invalid="ignore")`: a scoped MATLAB-compat shim over the one line whose only
+  operands are `fac`/`dpeak`/`t_time`, suppressing nothing but this enumerated case.
+  A `nan` sentinel was **rejected**: the reference's value is `Inf`/`NaN` by IEEE, and
+  `nan` would also collide with the codebase's NaN-for-absent convention
+  (`GciResult.goi`), conflating "no such event" with "unbounded ratio."
+- **Reachability:** `dpeak == 0` exactly is **measure-zero on real data** (it needs a
+  bit-exact-zero `uuseg` minimum) and is reachable only by construction; on the
+  fixtures every cycle has `dpeak > 0` (min +8.77e-3 — see C7 for the neighbouring
+  `dpeak < 0` open set). Exercised by an orthogonal unit test
+  (`test_features_flow.py`), not a fixture.
+- **Status:** reproduced (matches MATLAB IEEE division; not a correction candidate —
+  the reference's behaviour here is defined, not buggy).
+
 ---
 
 ## Divergences from the reference
@@ -348,6 +375,50 @@ path, to make going and finding it deliberate rather than incidental.
 - **What would exercise it on real data:** a cycle with f0 above ~1.5 kHz — a
   soprano's top register, a child's cry, or a creaky/octave-jump cycle whose measured
   period is very short.
+- **Orthogonal to C4 (`O1==0`), by mechanism not coincidence:** C5 trips on the partial
+  *count* (`f0 > 1500 Hz`), C4 on the *open-phase* detection — independent conditions.
+  The C4 seam test (`tests/test_features_extract.py`,
+  `test_c4_o1_zero_cycle_decomposition`) constructs a **long-period** no-open-phase
+  cycle (`number_partials = 37`) so it takes C4 without tripping C5; C5's own test takes
+  a short period. The two degenerate returns (C4 zeros the five timing/flow features;
+  C5 returns literal `0` for the two spectral features) never conflate.
+
+### C6. Short cycle: empty DC-shift window (`mean of empty slice` / `medfilt` warning)
+
+- **Where:** `voicekit.features.prep` (`prepare_cycles`), the DC-shift
+  `useg[lo-1:hi].mean()` with `lo = round(0.1*T)`, `hi = round(0.3*T)`; and the
+  downstream `medfilt` inside `open_close_timings`.
+- **What happens:** for a **very short** cycle (`T` a handful of samples), the
+  `[10%, 30%]` window `useg[lo-1:hi]` is empty, so `.mean()` emits
+  `RuntimeWarning: Mean of empty slice` and returns `nan` (poisoning `useg_shifted`),
+  and `medfilt(mask, 7)` on a sub-7-sample segment emits
+  `UserWarning: kernel_size exceeds volume extent`. **Distinct from C4:** this is a
+  degenerate *period*, not a degenerate *open phase*. Currently **unguarded**.
+- **Why the fixtures miss it:** the clean vowels space GCIs a full glottal cycle apart,
+  so every cycle (including the two boundary partials) is comfortably long. Kin to the
+  C2 adjacent-candidate gap — the two would be driven by the same input (GCIs a few
+  samples apart: creak, an octave error, or a projected candidate landing next to a
+  real one).
+- **Status:** filed, not fixed — a guard (skip or sentinel the sub-window cycle) is
+  validation-phase work once corpus data first produces a near-degenerate period.
+
+### C7. Flow declination sign: `dpeak <= 0` (non-negative residual over a cycle)
+
+- **Where:** `voicekit.features.flow` (`flow_statistics`), `dpeak = -min(uuseg)`.
+- **What happens:** if the flow derivative never goes negative across a cycle
+  (`min(uuseg) > 0`), then `dpeak < 0`, so `mfdr = dpeak/1000` is **negative**
+  (physically meaningless) and `naq = fac/(dpeak*T)` is negative — with no zero-divide,
+  no warning, and no guard. This is an **open set**, not measure-zero (C7 differs from
+  the `dpeak == 0` shim below): it needs only "no sample below zero" across the cycle.
+- **Why the fixtures miss it:** every cycle of all three fixtures has a clear negative
+  flow-derivative excursion (the glottal closure). Measured `min(dpeak)` across all
+  cycles of all three fixtures is **+8.77e-3** — strictly positive, so no cycle
+  approaches the sign flip.
+- **Likely a VUV concern, not a flow-group guard:** a strictly-non-negative-derivative
+  cycle has no closure — plausibly **unvoiced**. So the correct masking layer for it is
+  probably the step-7 voiced/unvoiced mask (which the seam's `apply_cycle_mask` already
+  accommodates as a second `(mask, subset, value)` call), not a sign clamp inside
+  `flow_statistics`. Filed for when VUV lands.
 
 ---
 
@@ -376,15 +447,31 @@ stage-isolated parity and composition *sanity*, but not composition *exactness*.
   delay, psp, costs, forward pass, traceback, refine — all bit-exact on captured
   inputs) and for end-to-end **runs-and-sane** (the pipeline completes and yields
   plausible voiced GCIs: F0 ≈ 120 Hz, uniform periods), but **not** for end-to-end
-  bit-exactness. The two 16 kHz fixtures carry the end-to-end exactness proof (their
-  captured residual is real IAIF output, which the live IAIF reproduces bit-exact).
+  parity. The two 16 kHz fixtures carry the end-to-end proof — with a precision
+  distinction that must not be overstated: the **GCIs and GOIs are bit-exact** (integer
+  sample indices), but the live IAIF `residual` matches the captured `udash` only to
+  **floating-point ε** (rel ~1e-12), and every float feature derived from it likewise.
+  "Bit-exact" at 16 kHz means the *integer* GCI/GOI indices; `udash` and the features
+  are ε, not bitwise. (The residual ε is the one join whose error is accumulated,
+  BLAS-dependent linear algebra — see the J2 note in `tests/test_yaga_detector.py`.)
 - **Origin:** this is exactly the consequence flagged when the 8 kHz fixture was
   regenerated as a *per-stage-parity* fixture rather than an *end-to-end anchor* (its
   `udash` is the ground-truth residual, not an IAIF output; see
   `tests/golden/README.md`). It is recorded here, not papered over.
 - **Not fixed by API:** `yaga()` deliberately has **no** residual-injection parameter
   to force 8 kHz to match — that would be shaping production code to a fixture's
-  workaround. The limitation stands as documented instead.
+  workaround. The residual is *returned* from `yaga()` (as `YagaResult.residual`,
+  read-only), never accepted, so no injection seam exists. The limitation stands as
+  documented instead.
+- **Possible root cause — reference misconfiguration, not an intrinsic 8 kHz limit
+  (validation-phase, filed not chased):** `iaif.m` note 6 recommends `p=8; g=2; r=8`
+  at 8 kHz, but `dypsagoi.m` calls `iaif(s, fs, 20, 4, 20, 1)` at **every** rate — a
+  20th-order vocal-tract LPC over a 4 kHz band at 8 kHz. That over-ordering is a
+  plausible ill-conditioning route to the NaN residual tail this fixture works around,
+  which would make F1 a *reference-configuration* artifact rather than a fundamental
+  8 kHz failure. The port faithfully mirrors dypsagoi's 20/4/20 at all rates
+  (`YagaConfig._default_iaif_config`); revisiting the 8 kHz order is validation-phase
+  work, not this milestone's.
 
 ---
 
@@ -508,3 +595,25 @@ surfaces each one.
   specified; a corrected form would interpolate or peak-search near `k*f0`, or take
   the FFT over exactly `T` samples.
 - **Status:** reproduced (feature observation, no correction specified).
+
+### V5. Live-IAIF ε propagates into the features (composition precision, not a threshold)
+
+- **Where:** the full-signal composition `iaif → (yaga, derive_flow) → extract_voice_features`,
+  at 16 kHz.
+- **What it is:** the port's IAIF is a from-scratch reimplementation validated to
+  tolerance, so its `residual` matches the captured `udash` only to accumulated,
+  BLAS-dependent linear-algebra **ε** (rel ~1e-12; see F1). Running the features from
+  that live residual rather than the captured `feat_u`, the ε propagates and — through
+  the spectral log/FFT — *amplifies*: measured relative error vs the capture is
+  `mfdr`/`pa` ~1e-15, `naq` ~1e-12, and **`h1h2`/`hrf` ~1e-10**. Same-input parity
+  (J3/J4, fed the captured residual) stays at ~1e-15; this larger figure is only the
+  *from-raw-signal* composition.
+- **Why it is here, not a gate:** a fully-live comparison is not a same-input parity
+  test, so it must not relax the parity tolerance. The parity gates stay tight
+  (J4 asserts the five flow/timing features bitwise, f0/spectral at rtol 1e-12 on
+  captured input); the fully-live path is a **runs-and-sane smoke test** (no NaNs, F0
+  in range, uniform periods), same category as 8 kHz. These propagation figures are
+  recorded so a future reader does not mistake the ~1e-10 spectral spread for a
+  regression — it is inherent IAIF ε amplified through the log, not an introduced error.
+- **Status:** observation only (no correction; the ε is intrinsic to a tolerance-
+  validated IAIF, not a reference oddity).

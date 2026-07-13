@@ -19,12 +19,29 @@ in `prepare_cycles`, so it staying green through that refactor proved it changed
 values (the five flow/timing features stayed bitwise-0).
 """
 
+import warnings
 from pathlib import Path
 
 import numpy as np
 import pytest
 
-from voicekit.features import apply_cycle_mask, extract_voice_features
+from voicekit.features import (
+    apply_cycle_mask,
+    extract_voice_features,
+    flow_statistics,
+    prepare_cycles,
+    spectral_statistics,
+    timing_statistics,
+)
+
+
+def _rosenberg(period: int) -> np.ndarray:
+    """A Rosenberg-like flow pulse (open 40%, return 16%) -- a clean voiced cycle."""
+    t1, t2 = int(0.4 * period), int(0.16 * period)
+    x = np.zeros(period)
+    x[:t1] = 0.5 * (1 - np.cos(np.pi * np.arange(t1) / t1))
+    x[t1 : t1 + t2] = np.cos(np.pi * np.arange(t2) / (2 * t2))
+    return x
 
 GOLDEN = Path(__file__).resolve().parent / "golden"
 FIXTURES = ["vowel_f0100_16k", "vowel_glide_16k", "vowel_f0120_8k"]
@@ -103,3 +120,60 @@ def test_apply_cycle_mask_assigns_only_the_subset_where_masked():
     np.testing.assert_array_equal(raw["cq"], [0.0, 2.0, 0.0])  # masked value and masked nan -> 0
     np.testing.assert_array_equal(raw["mfdr"], [0.0, np.nan, 0.0])  # unmasked nan survives (select)
     np.testing.assert_array_equal(raw["hrf"], [7.0, 8.0, 9.0])  # outside subset -> unchanged
+
+
+def test_c4_o1_zero_cycle_decomposition():
+    """C4: a no-open-phase cycle zeroes the five timing/flow features -- by self-zero
+    AND by mask, proving the mask redundant (the distinction commit 6 preserves).
+
+    The cycle is a long-period constant-0 plateau with a narrow negative notch: it
+    reaches O1==0 by plateau-collapse (the DC-shift drives max ~ 0, so the 5% mask is
+    all-False), yet stays spectrally non-degenerate (number_partials = 37, so C5's
+    literal-0 guard is NOT tripped -- C4 and C5 are orthogonal here; see
+    REFERENCE_NOTES C5). No committed fixture reaches O1==0 (C4).
+
+    Three assertions:
+      (1) the groups, called directly, return 0.0 on the notch cycle -- from their
+          0.0 init (the reference value), with no mask involved. If the pre-mask
+          group output were anything but 0.0 this must fail; that is the invariant.
+      (2) composed extract_voice_features also returns 0.0 there -- mask applied.
+      (1)+(2) together: the seam mask is a redundant safety net, not the sole rescue.
+    Flanking cycles carry genuinely nonzero five, so "neighbors unmasked" is not
+    vacuous. And the whole path raises no warning.
+    """
+    fs, p = 16000.0, 201  # T = 199 -> f0 ~ 80 Hz -> number_partials 37 (C5 not tripped)
+    normal = _rosenberg(p) * 1000.0
+    notch = np.zeros(p)
+    notch[p // 2 : p // 2 + 3] = -500.0  # narrow notch at 50%, outside the [10%,30%] window
+    u = np.concatenate([normal, normal, notch, normal, normal, normal[:50]])
+    uu = np.concatenate([[0.0], np.diff(u)]) * fs
+    gci = np.array([p, 2 * p, 3 * p, 4 * p], dtype=np.int64) - 1  # 0-based; notch is raw cycle 2
+    notch_ig = 2
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")  # the whole C4 path must be warning-free
+        preps = prepare_cycles(u, uu, gci, fs)
+        assert preps[notch_ig].o1 == 0  # no open phase, by plateau-collapse
+
+        # (1) groups self-zero the O1==0 cycle from init -- the reference value, no mask.
+        mfdr, pa, naq = flow_statistics(preps, fs)
+        cq, qoq = timing_statistics(preps)
+        assert (mfdr[notch_ig], pa[notch_ig], naq[notch_ig], cq[notch_ig], qoq[notch_ig]) == (
+            0.0, 0.0, 0.0, 0.0, 0.0,
+        )
+        # spectral is not masked and not degenerate here (C5 orthogonal) -> finite.
+        h1h2, hrf = spectral_statistics(preps, fs)
+        assert np.isfinite(h1h2[notch_ig]) and np.isfinite(hrf[notch_ig])
+        # neighbors carry genuinely nonzero five (masking not vacuous).
+        for ig in (1, 3):
+            assert all(v != 0.0 for v in (mfdr[ig], pa[ig], naq[ig], cq[ig], qoq[ig]))
+
+        # (2) composed extract also yields 0 on that cycle -- the seam mask applied.
+        vf = extract_voice_features(u, uu, fs, gci)
+
+    i = notch_ig - 1  # vf drops the left-edge non-cycle
+    assert (vf.mfdr[i], vf.pa[i], vf.naq[i], vf.cq[i], vf.qoq[i]) == (0.0, 0.0, 0.0, 0.0, 0.0)
+    assert vf.f0[i] != 0.0  # f0 is NOT masked (reference still sets 1/Ttime)
+    assert np.isfinite(vf.h1h2[i]) and np.isfinite(vf.hrf[i])  # spectral not masked
+    for i_n in (0, 2):  # composed neighbors of the notch cycle
+        assert all(v != 0.0 for v in (vf.mfdr[i_n], vf.pa[i_n], vf.naq[i_n], vf.cq[i_n], vf.qoq[i_n]))
