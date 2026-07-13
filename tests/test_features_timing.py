@@ -14,6 +14,7 @@ check certifies the DC-shift; a flat cycle exercises the O1==0 degenerate branch
 that no fixture reaches (REFERENCE_NOTES.md C4).
 """
 
+import warnings
 from pathlib import Path
 
 import numpy as np
@@ -23,6 +24,7 @@ from voicekit.features import (
     extract_voice_features,
     open_close_timings,
     open_periods,
+    prepare_cycles,
     timing_statistics,
 )
 
@@ -50,7 +52,7 @@ def test_timing_matches_capture(name):
     d = np.load(GOLDEN / f"{name}.npz")
     fs = float(d["input_fs"])
     gci = d["gci"].astype(np.int64) - 1  # 0-based (GciResult convention)
-    cq, qoq = timing_statistics(d["feat_u"], gci, fs)
+    cq, qoq = timing_statistics(prepare_cycles(d["feat_u"], d["udash"], gci, fs))
 
     np.testing.assert_allclose(cq, d["feat_cq"], rtol=1e-12, atol=1e-14)
     np.testing.assert_allclose(qoq, d["feat_qoq"], rtol=1e-12, atol=1e-14)
@@ -100,30 +102,43 @@ def test_synthetic_shift_makes_thresholding_pedestal_invariant():
     period = cycle.size
     u = np.tile(cycle, 4)
     gci = np.array([period, 2 * period, 3 * period], dtype=np.int64) - 1  # 0-based closures
+    uu = np.zeros_like(u)  # timing ignores uuseg; prepare_cycles needs an array
 
-    cq0, qoq0 = timing_statistics(u, gci, fs)
-    cq_ped, qoq_ped = timing_statistics(u + 5.0, gci, fs)  # whole-signal pedestal
+    cq0, qoq0 = timing_statistics(prepare_cycles(u, uu, gci, fs))
+    cq_ped, qoq_ped = timing_statistics(prepare_cycles(u + 5.0, uu, gci, fs))  # pedestal
     np.testing.assert_allclose(cq_ped, cq0)
     np.testing.assert_allclose(qoq_ped, qoq0)
     assert cq0[1] > 0  # interior cycle actually detected an open phase
 
 
-def test_synthetic_no_open_phase_zeroes_cq_qoq():
-    """A cycle with no threshold crossing hits the O1==0 branch (cq=qoq=0).
+def test_kernel_reports_no_open_phase_on_flat_input():
+    """The detection kernel yields O1==0 on a cycle with no rising edge.
 
-    No committed fixture reaches this (REFERENCE_NOTES.md C4); this unit check
-    exercises the degenerate branch directly. A flat cycle has no rising edge, so
-    ``open_periods`` returns empty and ``open_close_timings`` yields O1==0.
+    No committed fixture reaches this (REFERENCE_NOTES.md C4); this checks the kernel
+    directly. A flat cycle has no rising edge, so ``open_periods`` returns empty and
+    ``open_close_timings`` yields O1==0. (Composed seam masking is covered separately.)
     """
     flat = np.ones(200)
     assert open_periods(flat, 0.05, 7)[0].size == 0
     assert open_close_timings(flat, 0.05, 0.5, 7) == (0, 0, 0, 0)
 
+
+def test_timing_leaves_reference_zero_on_o1_zero_without_raising():
+    """On an O1==0 cycle timing keeps cq=qoq=0 (the reference value) and does not raise.
+
+    timing no longer *masks*; it guards qoq's 0/0 (which would raise) and leaves the
+    cell at its 0.0 init -- the reference's degenerate value. The seam's O1==0 mask is a
+    redundant safety net over this; the composed zeroing of all five is asserted in the
+    extract-level C4 test.
+    """
     fs, period = 16000.0, 200
-    u = np.tile(flat, 4)
-    gci = np.array([period, 2 * period, 3 * period], dtype=np.int64) - 1  # 0-based closures
-    cq, qoq = timing_statistics(u, gci, fs)
-    assert cq[1] == 0.0 and qoq[1] == 0.0
+    u = np.tile(np.ones(200), 4)  # flat cycles -> no open phase -> O1==0
+    uu = np.zeros_like(u)
+    gci = np.array([period, 2 * period, 3 * period], dtype=np.int64) - 1  # 0-based
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")  # a 0/0 would surface as a RuntimeWarning
+        cq, qoq = timing_statistics(prepare_cycles(u, uu, gci, fs))
+    assert cq[1] == 0.0 and qoq[1] == 0.0  # reference value, from init (not a mask)
 
 
 # --- Shape ------------------------------------------------------------------

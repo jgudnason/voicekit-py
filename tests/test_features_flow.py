@@ -18,7 +18,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from voicekit.features import extract_voice_features, flow_statistics
+from voicekit.features import extract_voice_features, flow_statistics, prepare_cycles
 
 GOLDEN = Path(__file__).resolve().parent / "golden"
 FIXTURES = ["vowel_f0100_16k", "vowel_glide_16k", "vowel_f0120_8k"]
@@ -41,7 +41,8 @@ def test_flow_statistics_match_capture(name):
     d = np.load(GOLDEN / f"{name}.npz")
     fs = float(d["input_fs"])
     gci = d["gci"].astype(np.int64) - 1  # 0-based (GciResult convention)
-    mfdr, pa, naq = flow_statistics(d["feat_u"], d["udash"], gci, fs)
+    preps = prepare_cycles(d["feat_u"], d["udash"], gci, fs)
+    mfdr, pa, naq = flow_statistics(preps, fs)
 
     np.testing.assert_allclose(mfdr, d["feat_mfdr"], rtol=1e-12, atol=1e-14)
     np.testing.assert_allclose(pa, d["feat_pa"], rtol=1e-12, atol=1e-14)
@@ -64,7 +65,7 @@ def test_synthetic_naq_matches_alku_modulo_v1():
     u = np.tile(_rosenberg_cycle(period), 4)  # several cycles for a clean interior
     uu = np.concatenate([[0.0], np.diff(u)]) * fs
     gci = np.array([period, 2 * period, 3 * period], dtype=np.int64) - 1  # 0-based closures
-    _mfdr, _pa, naq = flow_statistics(u, uu, gci, fs)
+    _mfdr, _pa, naq = flow_statistics(prepare_cycles(u, uu, gci, fs), fs)
 
     ref_naq = naq[1]  # interior cycle
     f_ac = u.max() - u.min()
@@ -79,7 +80,7 @@ def test_synthetic_mfdr_and_pa_known_values():
     u = np.tile(_rosenberg_cycle(period), 4)
     uu = np.concatenate([[0.0], np.diff(u)]) * fs
     gci = np.array([period, 2 * period, 3 * period], dtype=np.int64) - 1  # 0-based closures
-    mfdr, pa, _naq = flow_statistics(u, uu, gci, fs)
+    mfdr, pa, _naq = flow_statistics(prepare_cycles(u, uu, gci, fs), fs)
 
     a, b = period, 2 * period  # interior cycle [160, 320], trimmed nn
     nn = np.arange(a, b + 1)

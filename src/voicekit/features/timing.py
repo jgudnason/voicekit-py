@@ -38,13 +38,13 @@ Reference: ``vsaTools/extractVoiceFeatures.m`` (``openclosetimings`` /
 ``openPeriods``); reimplemented from the source, not ported.
 """
 
+from collections.abc import Sequence
+
 import numpy as np
 import numpy.typing as npt
 from scipy.signal import medfilt
 
-from voicekit._matlab_compat import matlab_round
-from voicekit.features.config import FeaturesConfig
-from voicekit.features.framework import iter_cycle_segments
+from voicekit.features.framework import CyclePrep
 
 
 def open_periods(
@@ -116,42 +116,22 @@ def open_close_timings(
 
 
 def timing_statistics(
-    u: npt.NDArray[np.float64],
-    gci: npt.NDArray[np.int64],
-    fs: float,
-    config: FeaturesConfig | None = None,
+    preps: Sequence[CyclePrep],
 ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
-    """Raw per-interval ``(cq, qoq)`` over the ``len(gci)+1`` intervals.
+    """Raw per-cycle ``(cq, qoq)`` over the prepared cycles.
 
-    ``u`` is the glottal flow; ``gci`` are 0-based sample indices (the `GciResult`
-    convention). Returns arrays of length ``len(gci)+1``. ``cq = O1/T`` (closed
-    quotient); ``qoq =
-    (C2-O2)/O2`` (quasi-open quotient -- the ``O2`` denominator is the reference's,
-    see REFERENCE_NOTES.md V2). Cycles with no open phase (``O1==0``) keep the
-    initialized zero, matching the reference's zeroing.
+    Reads ``o1/o2/c2`` and ``period`` from each `CyclePrep` -- ``O1`` (and the DC-shift
+    behind it) is computed once in `prepare_cycles`, not here. ``cq = O1/T`` (closed
+    quotient); ``qoq = (C2-O2)/O2`` (the ``O2`` denominator is the reference's, see
+    REFERENCE_NOTES.md V2). On ``o1==0`` cycles the reference assigns ``0``; those cells
+    are left at their ``0.0`` init (the parity value -- correct even if the seam's
+    redundant mask misses), and the guard skips ``qoq``'s ``0/0`` division.
     """
-    cfg = config if config is not None else FeaturesConfig()
-    u = np.asarray(u, dtype=np.float64)
-
-    segments = list(iter_cycle_segments(gci, u.size))
-    cq = np.zeros(len(segments))
-    qoq = np.zeros(len(segments))
-    for ig, (_a, _b, nn) in enumerate(segments):
-        useg = u[nn - 1] / fs
-        period = nn.size - 2  # the framework T (see framework.py; V1 convention)
-
-        # DC-shift by the mean over the cycle's [10%, 30%] window: assume the closed
-        # phase is in the first third and put it near zero (the first 0.1 is cut to
-        # stay clear of the GCI). Deliberate, not the rejected median (source line 88).
-        lo = int(matlab_round(0.1 * period))
-        hi = int(matlab_round(0.3 * period))
-        useg_shift = useg - useg[lo - 1 : hi].mean()
-
-        o1, o2, c1, c2 = open_close_timings(
-            useg_shift, cfg.open_threshold, cfg.quasi_open_level, cfg.medfilt_window
-        )
-        if o1 == 0:
-            continue  # O1==0: no open phase -> cq/qoq stay 0 (REFERENCE_NOTES.md C4)
-        cq[ig] = o1 / period
-        qoq[ig] = (c2 - o2) / o2
+    cq = np.zeros(len(preps))
+    qoq = np.zeros(len(preps))
+    for ig, p in enumerate(preps):
+        if p.o1 == 0:
+            continue  # no open phase: cq=qoq=0 (reference value), and skip qoq's 0/0
+        cq[ig] = p.o1 / p.period
+        qoq[ig] = (p.c2 - p.o2) / p.o2
     return cq, qoq

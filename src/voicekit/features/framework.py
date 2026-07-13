@@ -14,12 +14,38 @@ reimplemented from the source, not ported.
 """
 
 from collections.abc import Iterator
+from dataclasses import dataclass
 
 import numpy as np
 import numpy.typing as npt
 
 from voicekit._matlab_compat import matlab_round
 from voicekit.features.config import FeaturesConfig
+
+
+@dataclass(frozen=True)
+class CyclePrep:
+    """Per-cycle prep shared by the signal feature groups (flow, timing, spectral).
+
+    Built once by `prepare_cycles` so the ``useg``/``uuseg`` extraction, the DC-shift,
+    and ``O1`` are computed a single time and cannot drift between groups. The three
+    segment arrays are kept **distinct on purpose**: ``pa`` (peak-to-peak) and the
+    spectral FFT are shift-invariant, so collapsing them to one array would still pass
+    the golden gate -- but the reference feeds *unshifted* flow to flow/spectral and
+    *shifted* flow to timing, and the two must not silently merge.
+    """
+
+    a: int  # untrimmed 1-based bracket start (framek)
+    b: int  # untrimmed 1-based bracket end (framek)
+    nn: npt.NDArray[np.int64]  # 1-based trimmed sample range
+    period: int  # T = nn.size - 2
+    useg: npt.NDArray[np.float64]  # UNSHIFTED u[nn-1]/fs -> flow (fac), spectral (fft)
+    uuseg: npt.NDArray[np.float64]  # UNSHIFTED uu[nn-1] -> flow (dpeak)
+    useg_shifted: npt.NDArray[np.float64]  # DC-shifted useg -> timing only
+    o1: int  # open-phase start (0 => no open phase); the shared O1 the seam masks on
+    o2: int
+    c1: int
+    c2: int
 
 
 def iter_cycle_segments(

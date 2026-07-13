@@ -35,11 +35,13 @@ Reference: ``vsaTools/extractVoiceFeatures.m`` (``specParam``, "As implemented b
 Yu-Ren", and its caller); reimplemented from the source, not ported.
 """
 
+from collections.abc import Sequence
+
 import numpy as np
 import numpy.typing as npt
 
 from voicekit.features.config import FeaturesConfig
-from voicekit.features.framework import iter_cycle_segments
+from voicekit.features.framework import CyclePrep
 
 
 def spectral_params(
@@ -71,29 +73,21 @@ def spectral_params(
 
 
 def spectral_statistics(
-    u: npt.NDArray[np.float64],
-    gci: npt.NDArray[np.int64],
-    fs: float,
-    config: FeaturesConfig | None = None,
+    preps: Sequence[CyclePrep], fs: float, config: FeaturesConfig | None = None
 ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
-    """Raw per-interval ``(h1h2, hrf)`` over the ``len(gci)+1`` intervals.
+    """Raw per-cycle ``(h1h2, hrf)`` over the prepared cycles.
 
-    ``u`` is the glottal flow; ``gci`` are 0-based sample indices (the `GciResult`
-    convention). Returns arrays
+    Reads the UNSHIFTED ``useg`` and ``period`` from each `CyclePrep`. Returns arrays
     matching the reference's **stored** arrays, i.e. **crossed** (V3): the returned
     ``h1h2`` holds the reference's HRF and the returned ``hrf`` holds H1-H2. Parity
     with the capture holds because both are swapped the same way.
     """
     cfg = config if config is not None else FeaturesConfig()
-    u = np.asarray(u, dtype=np.float64)
 
-    segments = list(iter_cycle_segments(gci, u.size))
-    h1h2 = np.zeros(len(segments))
-    hrf = np.zeros(len(segments))
-    for ig, (_a, _b, nn) in enumerate(segments):
-        useg = u[nn - 1] / fs
-        period = nn.size - 2  # the framework T (see framework.py; V1 convention)
-        h1h2_real, hrf_real = spectral_params(useg, period, fs, cfg.harmonic_limit_hz)
+    h1h2 = np.zeros(len(preps))
+    hrf = np.zeros(len(preps))
+    for ig, p in enumerate(preps):
+        h1h2_real, hrf_real = spectral_params(p.useg, p.period, fs, cfg.harmonic_limit_hz)
         # V3: the reference stores the two outputs crossed (REFERENCE_NOTES.md V3).
         # The array named h1h2 receives HRF; the array named hrf receives H1-H2.
         h1h2[ig] = hrf_real

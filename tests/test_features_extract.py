@@ -5,17 +5,18 @@ calling one group function directly. This test validates the *composition* -- th
 public `extract_voice_features`, driven once, reproducing all ten captured
 `feat_*` arrays in a single call. It is the only test that exercises the
 orchestration itself: the 0-based -> 1-based gci conversion, the left-edge-drop
-slicing, the field assignment (including the V3 h1h2/hrf crossing), and -- once it
-lands -- the `O1==0` seam masking. A shared-intermediate divergence or a
-field-wiring bug that every per-group test passes will surface here.
+slicing, the field assignment (including the V3 h1h2/hrf crossing), and the `O1==0`
+seam masking. A shared-intermediate divergence or a field-wiring bug that every
+per-group test passes will surface here.
 
 It is fed the *captured* `udash`/`feat_u` (not live IAIF output), so it holds on
 all three fixtures including 8 kHz, whose live pipeline cannot reproduce the
 capture (fixture limitation F1) but whose captured-input features are exact.
 
-This is the behavior-preserving baseline for the shared-prep refactor: it passes
-against the current (duplicated per-group) code, and its staying green is the
-proof that the refactor changed nothing.
+It is the behavior-preserving anchor for the shared-prep hoist: it reproduces the
+capture whether the per-cycle prep is duplicated across the groups or computed once
+in `prepare_cycles`, so it staying green through that refactor proved it changed no
+values (the five flow/timing features stayed bitwise-0).
 """
 
 from pathlib import Path
@@ -23,7 +24,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from voicekit.features import extract_voice_features
+from voicekit.features import apply_cycle_mask, extract_voice_features
 
 GOLDEN = Path(__file__).resolve().parent / "golden"
 FIXTURES = ["vowel_f0100_16k", "vowel_glide_16k", "vowel_f0120_8k"]
@@ -79,3 +80,26 @@ def test_extract_matches_capture_all_ten(name):
     # load-bearing (framek is genuinely 1-based before its output -1).
     np.testing.assert_array_equal(vf.framek + 1, d["feat_framek"][1:].astype(np.int64))
     np.testing.assert_array_equal(vf.vuv, d["feat_vuv"][1:] == 1.0)
+
+
+def test_apply_cycle_mask_assigns_only_the_subset_where_masked():
+    """The reusable (mask, subset, value) step: assigns value to subset cells under the
+    mask, leaves everything else untouched, and selects rather than multiplies.
+
+    In the pipeline the O1==0 mask is redundant (the groups already leave 0), so this
+    unit test is where the mechanism itself is exercised. mask = [T, F, T]:
+      - a masked cell -> value, whatever it held (incl. nan): the nan->0 rescue;
+      - an UNMASKED nan survives untouched -- the select semantics (0*nan would poison it);
+      - an array outside the subset is not touched at all.
+    """
+    raw = {
+        "cq": np.array([1.0, 2.0, np.nan]),  # masked cells 0 and 2 (2 holds nan)
+        "mfdr": np.array([5.0, np.nan, 6.0]),  # unmasked cell 1 holds nan
+        "hrf": np.array([7.0, 8.0, 9.0]),  # not in the subset -> must be untouched
+    }
+    mask = np.array([True, False, True])
+    apply_cycle_mask(raw, mask, ("cq", "mfdr"), 0.0)
+
+    np.testing.assert_array_equal(raw["cq"], [0.0, 2.0, 0.0])  # masked value and masked nan -> 0
+    np.testing.assert_array_equal(raw["mfdr"], [0.0, np.nan, 0.0])  # unmasked nan survives (select)
+    np.testing.assert_array_equal(raw["hrf"], [7.0, 8.0, 9.0])  # outside subset -> unchanged

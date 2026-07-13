@@ -14,53 +14,45 @@ NAQ matches Alku's ``f_ac/(d_peak*T)`` exactly except that ``Ttime`` uses the
 framework period ``T = len(nn)-2``, so NAQ inherits observation V1's
 ``period-1`` convention (see REFERENCE_NOTES) -- the same cause, not a new one.
 
-The reference additionally zeroes all three when no open phase is found
-(``O1==0``); that couples them to the timing machinery and is applied at
-orchestration once the timing group provides ``O1`` (see REFERENCE_NOTES.md
-"Coverage gaps" C4). The fixtures never take that branch, so the plain formulas
-reproduce them exactly here.
+On ``O1==0`` cycles the reference does not compute these -- its degenerate branch
+assigns ``0`` to all five timing/flow features (see REFERENCE_NOTES.md "Coverage
+gaps" C4). So this group gates on the shared ``O1`` too: an ``o1==0`` cycle keeps its
+``0.0`` init (the reference value, correct even if the seam's redundant mask misses),
+and its division is skipped. The fixtures never take that branch, so the plain
+formulas reproduce them exactly.
 
 Reference: ``vsaTools/extractVoiceFeatures.m``; reimplemented, not ported.
 """
 
+from collections.abc import Sequence
+
 import numpy as np
 import numpy.typing as npt
 
-from voicekit.features.config import FeaturesConfig
-from voicekit.features.framework import iter_cycle_segments
+from voicekit.features.framework import CyclePrep
 
 _MFDR_UNIT_SCALE = 1000.0  # cm^3/s^2 -> l/s^2
 
 
 def flow_statistics(
-    u: npt.NDArray[np.float64],
-    uu: npt.NDArray[np.float64],
-    gci: npt.NDArray[np.int64],
-    fs: float,
-    config: FeaturesConfig | None = None,
+    preps: Sequence[CyclePrep], fs: float
 ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]]:
-    """Raw per-interval ``(mfdr, pa, naq)`` over the ``len(gci)+1`` intervals.
+    """Raw per-cycle ``(mfdr, pa, naq)`` over the prepared cycles.
 
-    ``u`` is the glottal flow, ``uu`` its derivative; ``gci`` are 0-based sample
-    indices (the `GciResult` convention). Returns arrays of length ``len(gci)+1``
-    (the plain formulas -- the
-    ``O1==0`` zeroing is applied downstream).
+    Reads the UNSHIFTED ``useg``/``uuseg`` from each `CyclePrep`. On ``o1==0`` cycles
+    the reference assigns ``0`` (it does not compute these), so those cells are left at
+    their ``0.0`` init. ``naq``'s ``fac/(dpeak*t)`` keeps its ``errstate`` IEEE shim
+    (``dpeak==0`` -> MATLAB ``inf``/``nan``, measure-zero), reached only on ``o1!=0``.
     """
-    del config  # no tunable knobs for these extrema; signature kept for uniformity
-    u = np.asarray(u, dtype=np.float64)
-    uu = np.asarray(uu, dtype=np.float64)
-
-    segments = list(iter_cycle_segments(gci, u.size))
-    mfdr = np.zeros(len(segments))
-    pa = np.zeros(len(segments))
-    naq = np.zeros(len(segments))
-    for ig, (_a, _b, nn) in enumerate(segments):
-        idx = nn - 1  # 1-based nn -> 0-based signal index
-        useg = u[idx] / fs
-        uuseg = uu[idx]
-        dpeak = -uuseg.min()
-        fac = useg.max() - useg.min()
-        t_time = (nn.size - 2) / fs
+    mfdr = np.zeros(len(preps))
+    pa = np.zeros(len(preps))
+    naq = np.zeros(len(preps))
+    for ig, p in enumerate(preps):
+        if p.o1 == 0:
+            continue  # no open phase: reference assigns 0; leave init (see C4)
+        dpeak = -p.uuseg.min()
+        fac = p.useg.max() - p.useg.min()
+        t_time = p.period / fs
         mfdr[ig] = dpeak / _MFDR_UNIT_SCALE
         pa[ig] = fac
         with np.errstate(divide="ignore", invalid="ignore"):
