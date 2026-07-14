@@ -51,6 +51,11 @@ A future reader must not misread a "quirk reproduced" entry as "the port differs
 here." It does not: it matches. And must not read "passes every unit test" as
 "fully exercised" — see the coverage-gaps section for where it isn't.
 
+Beyond these five (which are all port-vs-reference), a trailing **Step 7 (VUV) —
+forward findings** section records watch-items surfaced while designing the
+in-progress voicing milestone. Those are design findings for an as-yet-unbuilt
+component, not reproduction facts.
+
 **Convention:** the inline code comment at each reproduction site should point
 back to this file (e.g. `# see REFERENCE_NOTES.md: waveform window +1`) rather
 than re-explaining the quirk, so the rationale lives in one place.
@@ -617,3 +622,45 @@ surfaces each one.
   regression — it is inherent IAIF ε amplified through the log, not an introduced error.
 - **Status:** observation only (no correction; the ε is intrinsic to a tolerance-
   validated IAIF, not a reference oddity).
+
+---
+
+## Step 7 (VUV) — forward findings
+
+Findings surfaced while designing the step-7 voicing milestone (see DESIGN.md §9
+item 7). Unlike the five sections above, these are **not** port-vs-reference
+reproduction facts — they are watch-items for an as-yet-unbuilt component,
+recorded so the detector sub-gate starts from them, not from a blank page.
+
+### VUV1. Binary output does not imply a single-stage classifier — the silence pre-gate is a deliberate design choice
+
+The step-7 output label is binary (voiced / non-voiced), but that is the *output*
+domain, not the classifier's internal structure. In true silence or near-floor
+noise the periodicity features (`C1`, `Ep`) are computed on noise and cannot
+distinguish "unvoiced speech" from "no speech at all," so the detector plausibly
+needs an internal energy/silence pre-gate feeding the voiced/unvoiced decision.
+
+- **Watch:** an energy-based pre-gate in front of an energy-driven main decision
+  is an energy classifier in disguise — it re-enters the *floor-fixture trap* (a
+  detector that passes the clean S/V/U/V/S fixture on energy alone while failing
+  the hard cases the detector exists for) through the front door. The silence
+  stage must be designed deliberately at the sub-gate, against a discriminating
+  fixture, not bolted on.
+- **Status:** open design finding for the detector sub-gate.
+
+### VUV2. `VoiceFeatures.vuv` is a misleading name — an active namespace hazard
+
+`VoiceFeatures.vuv` (`features/result.py`) is the reference's per-cycle
+**frame-length sanity flag** — a cycle whose period puts F0 in (40, 400) Hz —
+faithfully reproduced, **not** a voicing verdict. The name has always been
+misleading; with a real voicing output (`VoicingTrack.voiced`) now landing
+beside it, the confusion is **active, not latent**: a reader will reasonably
+expect `vuv` to be the voicing detector.
+
+- **Mitigation this round:** naming the new track `voicing` (field `voiced`)
+  sidesteps the collision. Renaming `vuv` itself is a `features/` change deferred
+  as a follow-up and ledgered here so the two are never conflated.
+- **Severity:** real, not cosmetic. (This `vuv` is the frame-length flag kept
+  distinct from the step-7 classifier throughout the step-7 gates; cf. V3 for
+  another reproduced naming oddity in the same feature reference.)
+- **Status:** open follow-up; rename gated on a `features/` touch.

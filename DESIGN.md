@@ -271,8 +271,60 @@ inside the hot loops.
    CQ, NAQ, QOQ, H1-H2/HRF, etc.), built on top of step 5's GCIs/GOIs and
    step 4's glottal flow output.
 7. **VUV/voicing detection** — one unified, well-tested approach, replacing
-   the old codebase's two never-reconciled implementations. Also closes
-   DYPSA's own bug #5 ("should have an integrated voiced/voiceless detector").
+   the old codebase's two never-reconciled implementations, and closing DYPSA's
+   own bug #5 ("should have an integrated voiced/voiceless detector"). No
+   canonical behaviour exists to golden-master against (the two legacy detectors
+   were never reconciled and neither is on the captured pipeline), so this is
+   *define-the-target*: synthetic known-value fixtures are the oracle, not
+   parity. Like YAGA, the milestone splits — an architecture gate (settled here)
+   and a detector sub-gate (the classifier build, next).
+
+   *Settled architecture.*
+   - **Output is a frame-based voicing track, not a per-cycle field.** A new
+     `VoicingTrack` container, sibling to `VoiceFeatures` (not a field of it),
+     self-describing (`fs`/`frame_len`/`hop`), primary field `voiced:
+     NDArray[bool]`. It rides the existing fixed-frame grid (`framing.py`, the
+     one LPC already uses) — no new tiling; what is new is a per-frame label. A
+     frame track is required because the material step 7 targets (running speech)
+     has unvoiced and silent regions with no glottal cycles, which a per-cycle
+     output structurally cannot represent.
+   - **Label domain is binary** (voiced / non-voiced). No current or near-term
+     consumer reads a silence-vs-unvoiced split, and the charter (bug #5) says
+     "voiced/voiceless"; 3-class {S,U,V} was the legacy code's TIMIT-training
+     convenience, not a consumer requirement. The representation is kept
+     *wideable*: if a silence consumer (VAD/segmentation) lands later, widening
+     is additive, not a rework.
+   - **The per-cycle path becomes a derived mask.** `apply_cycle_mask` (the
+     step-6 seam) gains a second call with `value=nan`, whose narrow job is to
+     mask detected cycles whose GCI falls in a track-non-voiced frame. The track
+     is the source of truth; cycles inherit. The mask stays a transient (no
+     public field) for now, but the sub-gate's discriminating-fixture test must
+     be able to observe/assert the masking (transient ≠ untestable).
+
+   *Leans carried to the sub-gate* — evidence-backed, to be confirmed against a
+   discriminating fixture, not yet locked:
+   - **Fixed thresholds in a typed `VuvConfig`, over a committed trained model.**
+     The legacy trained detector ships five corpus-specific centroid sets whose
+     voiced centroid alone spans ~7× in zero-crossings and ~24 dB in energy
+     across corpora — direct evidence one frozen model will not generalize — and
+     ≥2 of those corpora are likely non-redistributable (an Apache-2.0 hazard). A
+     typed config matches this project's "no global state" model.
+   - **Multi-feature over energy-only.** The Atal-Rabiner five (`Nz`, `Es`, `C1`,
+     `alp1`, `Ep`; from the 1976 paper, a clean from-scratch source) carry the
+     hard cases energy-only cannot — low-energy voiced offset, voiced frication,
+     breathy voice — where the periodicity features (`C1`, `Ep`) do the
+     separating. Energy-only is the floor-fixture trap. Subset-vs-full-five is
+     sub-gate tuning.
+   - **Raw-signal input over a residual/flow front-end.** The raw signal is
+     defined in the silent/unvoiced regions that have no GCIs or residual; a
+     residual input would reintroduce the no-cycle-region blindness the framing
+     decision already rejected.
+
+   The synthetic S/V/U/V/S fixture already committed is the clean-separation
+   *floor* oracle (a detector can pass it on energy alone); the *discriminating*
+   fixture for the hard cases is co-designed with the classifier at the sub-gate.
+   Two forward findings from this gate are recorded in REFERENCE_NOTES §"Step 7
+   (VUV) — forward findings".
 8. **Alternative weighted-LP GIF methods** — closed-phase, AME (Alku),
    and symmetric/asymmetric Gaussian weighting (Zalazar et al. 2024), as a
    comparison framework against IAIF. Thanks to step 3's weighted covariance
