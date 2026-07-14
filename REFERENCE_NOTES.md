@@ -664,3 +664,80 @@ expect `vuv` to be the voicing detector.
   distinct from the step-7 classifier throughout the step-7 gates; cf. V3 for
   another reproduced naming oddity in the same feature reference.)
 - **Status:** open follow-up; rename gated on a `features/` touch.
+
+### VUV3. Discriminating fixtures prove *sufficiency-elimination* only, never necessity
+
+The three discriminating fixtures (D1/D2/D3, `tests/synthetic/`) are built so that
+**periodicity is the sole surviving separator**: each defeats one or more
+non-periodicity features (D1 energy asymptotically; D2 energy exactly + most of
+zero-crossings; D3 energy exactly + spectral tilt), while the matched-pair / taper
+devices decorrelate every non-periodicity feature from the label. The surviving
+separator is genuine F0 periodicity (autocorrelation at the pitch lag, not lag-1
+smoothness — verified so a low-tilt breathy region cannot pass on smoothness).
+
+- **What the set proves:** no non-periodicity feature (energy, zero-crossings,
+  tilt) is **sufficient** for the label — there exist equal-value, opposite-label
+  frames for each.
+- **One precise bound — D2 zero-crossings are defeated only to ~3%, not exactly.**
+  The matched pair (shared turbulence) makes energy *exactly* equal, but
+  superimposing the periodic source lowers the voiced region's zero-crossing rate
+  by a bounded ~3% (measured ratio ≈ 0.97). This is intrinsic to adding a
+  low-frequency periodic component onto turbulence, not a seed-slice artifact (the
+  two regions share one turbulence realization). Sufficiency is still eliminated
+  because the per-frame ZCR distributions overlap — no single frame's ZCR decides
+  the label — but "ZCR provably equal" would overclaim; the fixture test asserts
+  the bounded leak (`0.95 < ratio < 1.0`), not equality.
+- **What it cannot prove:** that any feature (periodicity included) is
+  **necessary**. Testing necessity would need a case where periodicity is *also*
+  defeated yet the label stays determinable by another route; by construction no
+  such case exists (periodicity is the only thing left tracking the label).
+- **What ratifying therefore licenses the classifier gate to claim:** only the
+  negative — "the classifier may not rely solely on energy / zero-crossings /
+  tilt." It does **not** license "must use periodicity" or "periodicity suffices."
+- **Status:** scope boundary; carry into the classifier sub-gate. See DESIGN.md §9
+  item 7.
+
+### VUV4. Per-fixture realism gaps — the discriminating set is optimistic for periodicity
+
+The construction guarantees the *label* is feature-free, but not that the fixtures
+are as hard as reality *for the periodicity features* the set rewards.
+
+- **Gaps baked in:** D2/D3 model voiced frication / breathy voice as **additive,
+  independent** source + turbulence with the source's periodicity **unmodified**;
+  D3's source is **jitter/shimmer-free**. Real voiced fricatives modulate
+  turbulence pitch-synchronously and can have irregular voicing; real breathy
+  voice has cycle jitter — both further depress the periodicity a detector would
+  measure. So `C1`/`Ep` likely succeed *more easily* here than on real signals.
+- **Named hardening knobs (deferred worklist):** pitch-synchronous turbulence
+  modulation (D2); cycle jitter/shimmer (D3). Adding either is a new fixture
+  variant, not a change to these.
+- **Consequence for the pitch-lag assertion when jitter is added.** The D2/D3
+  tests assert periodicity at a **single, fixed** pitch lag (`round(fs/f0)`) —
+  valid because the current sources are exactly periodic, so all energy sits in
+  one bin. Turning the jitter knob spreads the pitch peak across a *band* of lags,
+  so the fixed-bin autocorrelation drops even though genuine periodicity is still
+  present. A later chat adding jitter must therefore widen that assertion to a
+  **lag-band search** (max autocorrelation over `fs/f0_max … fs/f0_min`, the form
+  already used in the probes) — a falling fixed-bin value is the *expected*
+  consequence of the knob, **not** a broken fixture. Widen the assertion; do not
+  read its failure as a regression.
+- **Status:** open worklist for a harder fixture iteration, co-designed with the
+  classifier. See DESIGN.md §9 item 7.
+
+### VUV5. D1's energy-defeat is asymptotic-in-the-tail, not a matched-pair contrast
+
+Unlike D2/D3 (where the energy-matched pair makes energy equal *pointwise*), D1's
+energy-defeat holds **only in the decay tail**, where voiced-frame energy
+asymptotically approaches the floor. Over the whole fixture energy correlates with
+the label (high-energy onset, low-energy floor); it fails only in the sub-floor
+tail.
+
+- **Consequence:** D1's energy-defeat is provable **only under SNR-stratified
+  scoring** — evaluating the low-SNR tail frames specifically. An energy detector
+  scores well on D1 *in aggregate* (onset + floor right, tail wrong), so an
+  aggregate metric hides the discriminating frames.
+- **Mitigation shipped:** D1 exports its per-region SNR (`region_hard_param`,
+  `hard_param_name == "snr_db"`) as the stratification channel so a later scorer
+  can bin by difficulty. (D2 exports VFR, D3 exports HNR, for the same reason.)
+- **Status:** a requirement on the (deferred) scorer, not on the fixture. See
+  DESIGN.md §9 item 7.

@@ -134,3 +134,73 @@ decision is settled at the next gate with this fixture in hand. This fixture is
 built to validate **either** framing; the generator, signal, region table,
 voiced-only GCI list, and loader are the deliverable, and nothing that consumes
 them for scoring is included.
+
+---
+
+# Discriminating fixtures — D1 / D2 / D3
+
+The floor fixture above is the *ceiling* on how easy a case can be. The three
+**discriminating** fixtures (`make_vuv_discriminating.py`,
+`vuv_d{1,2,3}_*.wav` + `.labels.npz`, loaded with `load_discriminating_fixture`)
+are the *hard* cases the detector actually exists for — where a naive energy rule
+fails. They use the **binary** V/non-V label settled at the architecture gate.
+
+**Feature-free ground truth.** A region is **voiced** iff a quasi-periodic
+glottal source component was summed into its samples during synthesis; otherwise
+**non-voiced**. This is a generator flag, referencing no measured quantity.
+
+**Label channels** (`.labels.npz`): `region_start`/`region_end` (start-inclusive,
+end-exclusive), `region_label` (`'V'`/`'N'`, the ground truth), `region_kind` (a
+descriptive construction tag), `region_hard_param` + `hard_param_name` (the
+per-region hard-regime metadata — D1 SNR dB, D2 VFR dB, D3 HNR dB — a
+**stratification** channel, not a label and not a threshold), and
+`gci_construction` (source closures known by construction; secondary — D1's
+mask-exercise asserts against *detected* GCIs, not this list).
+
+### D1 — low-energy voiced offset (and the mask exercise)
+
+`floor → voiced_steady → voiced_decay → subfloor_residual → floor`. A voiced
+segment decays exponentially through a stationary noise floor. **Two instants are
+separated on purpose:** the voiced→non-voiced *label* boundary `t3` (start of
+`subfloor_residual`) precedes the *source* switch-off (end of `subfloor_residual`),
+so the pulse train keeps emitting real closures into the sub-floor tail — closures
+that YAGA detects but the ground truth labels non-voiced. This is what exercises
+the derived per-cycle mask (`test_d1_mask_exercise_runs_on_live_yaga` asserts a
+**live-detected** GCI lands in a non-voiced region beyond the guard band, and the
+downstream test shows that cycle's features go `nan` while a voiced cycle stays
+finite). It closes the gap the floor fixture left open (there, all GCIs were
+interior-voiced, so the mask was a no-op). Its GCI list is deliberately **not**
+voiced-only.
+
+### D2 / D3 — matched-pair feature defeats
+
+Both use a **matched pair**: two regions built from the same-band noise, the
+non-voiced partner **energy-matched** to the voiced region's total power, so the
+label is orthogonal to energy by construction.
+
+- **D2 (voiced frication):** `voiced_modal → voiced_fricative → unvoiced_fricative`,
+  turbulence-dominated (VFR = −10 dB). The matched pair defeats **energy**
+  *exactly* (equal RMS by construction). **Zero-crossings are only partially
+  defeated:** superimposing the periodic source lowers the voiced region's
+  crossing rate by a bounded ~3% — an honest, intrinsic consequence (not a
+  matched-pair artifact; the turbulence is shared between the two regions). The
+  per-frame ZCR distributions overlap, so ZCR is still not *sufficient* — see
+  REFERENCE_NOTES VUV3.
+- **D3 (breathy voice):** `modal_voiced → breathy_voiced → aspiration`, at HNR ≈ 0.
+  The pair defeats **energy** exactly; and because modal (low tilt) and breathy
+  (high tilt) are both labelled V, **spectral tilt** varies within the voiced
+  class and cannot proxy the label.
+
+In every pair, the only surviving separator is **periodicity**, and it is genuine
+F0 periodicity, not lag-1 smoothness: the autocorrelation *at the pitch lag* is
+strictly higher on the voiced side (D2 margin ≈ +0.09, D3 breathy-vs-aspiration
+≈ +0.47 — the breathy hard case clears the bar on its own, not just modal).
+Across the set, the union of defeats covers every non-periodicity feature
+(energy, zero-crossings, tilt).
+
+**Honest limits are ledgered, not hidden** — see REFERENCE_NOTES §"Step 7 (VUV)":
+the set proves *sufficiency-elimination* only (not necessity); the additive /
+no-jitter / unmodulated-turbulence recipes are optimistic for the periodicity
+features (hardening knobs named); and D1's energy-defeat is asymptotic-in-the-tail,
+provable only under SNR-stratified scoring. Still no classifier, no thresholds,
+no scorer — ground truth and its assertions only.

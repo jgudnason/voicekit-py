@@ -320,11 +320,18 @@ inside the hot loops.
      residual input would reintroduce the no-cycle-region blindness the framing
      decision already rejected.
 
-   The synthetic S/V/U/V/S fixture already committed is the clean-separation
-   *floor* oracle (a detector can pass it on energy alone); the *discriminating*
-   fixture for the hard cases is co-designed with the classifier at the sub-gate.
-   Two forward findings from this gate are recorded in REFERENCE_NOTES §"Step 7
-   (VUV) — forward findings".
+   The synthetic S/V/U/V/S fixture is the clean-separation *floor* oracle (a
+   detector can pass it on energy alone). The *discriminating* fixtures for the
+   hard cases (D1 low-energy voiced offset, D2 voiced frication, D3 breathy voice)
+   are now committed as **ground truth** (`tests/synthetic/`) — D1 exercises the
+   derived per-cycle mask against live YAGA output; D2/D3 defeat energy (exactly)
+   and, across the set, zero-crossings and tilt via energy-matched pairs, leaving
+   genuine (pitch-lag) periodicity the sole separator. Only the ground truth and
+   its assertions exist; the classifier, its
+   thresholds, the discriminating-fixture *hardening* (jitter, pitch-synchronous
+   turbulence), and the scorer remain at the sub-gate. Forward findings and the
+   honest limits of the fixtures are recorded in REFERENCE_NOTES §"Step 7 (VUV) —
+   forward findings" (VUV1–VUV5).
 8. **Alternative weighted-LP GIF methods** — closed-phase, AME (Alku),
    and symmetric/asymmetric Gaussian weighting (Zalazar et al. 2024), as a
    comparison framework against IAIF. Thanks to step 3's weighted covariance
