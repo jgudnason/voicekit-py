@@ -96,7 +96,7 @@ def test_extract_matches_capture_all_ten(name):
     # on different quantities (gci inbound, framek outbound) and are each independently
     # load-bearing (framek is genuinely 1-based before its output -1).
     np.testing.assert_array_equal(vf.framek + 1, d["feat_framek"][1:].astype(np.int64))
-    np.testing.assert_array_equal(vf.vuv, d["feat_vuv"][1:] == 1.0)
+    np.testing.assert_array_equal(vf.frame_len_ok, d["feat_vuv"][1:] == 1.0)  # capture key kept
 
 
 def test_apply_cycle_mask_assigns_only_the_subset_where_masked():

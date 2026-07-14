@@ -18,7 +18,7 @@ class VoiceFeatures:
 
     All feature fields are ``float`` so an uncomputable cycle is ``NaN`` rather
     than a poison value (a consumer checks ``np.isnan`` before use); ``framek``
-    (cycle-centre sample) and ``vuv`` (voiced flag) are always defined.
+    (cycle-centre sample) and ``frame_len_ok`` (frame-length flag) are always defined.
 
     ``framek`` is 0-based, the mirror of the 0-based ``gci`` input: everything
     crossing the public boundary is 0-based, and the reference's 1-based cycle
@@ -39,7 +39,7 @@ class VoiceFeatures:
 
     f0: npt.NDArray[np.float64]  # fundamental frequency (Hz)
     framek: npt.NDArray[np.int64]  # 0-based cycle-centre sample index
-    vuv: npt.NDArray[np.bool_]  # voiced flag
+    frame_len_ok: npt.NDArray[np.bool_]  # frame-length flag: cycle period in (fs/400, fs/40)
     mfdr: npt.NDArray[np.float64]  # maximum flow declination rate
     cq: npt.NDArray[np.float64]  # closed quotient
     pa: npt.NDArray[np.float64]  # pulse amplitude

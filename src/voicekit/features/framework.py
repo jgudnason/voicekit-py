@@ -76,11 +76,11 @@ def cycle_framework(
     fs: float,
     config: FeaturesConfig | None = None,
 ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]]:
-    """Raw per-interval ``(f0, framek, vuv)`` over the ``len(gci)+1`` intervals.
+    """Raw per-interval ``(f0, framek, frame_len_ok)`` over the ``len(gci)+1`` intervals.
 
     ``gci`` are 0-based sample indices (the `GciResult` convention); returns arrays
-    of length ``len(gci)+1`` in the raw reference form (``framek`` 1-based, ``vuv``
-    as 0/1). The period is ``T = len(nn)-2`` and ``f0 = fs/T`` -- the reference's
+    of length ``len(gci)+1`` in the raw reference form (``framek`` 1-based,
+    ``frame_len_ok`` as 0/1). The period is ``T = len(nn)-2`` and ``f0 = fs/T`` -- the reference's
     convention (see REFERENCE_NOTES, "Feature observations" V1: this makes ``f0``
     ``fs/(period-1)`` for interior cycles, not ``fs/period``).
     """
@@ -89,7 +89,7 @@ def cycle_framework(
     n_intervals = len(segments)
     f0 = np.zeros(n_intervals)
     framek = np.zeros(n_intervals)
-    vuv = np.zeros(n_intervals)
+    frame_len_ok = np.zeros(n_intervals)
 
     t_lo = fs / cfg.voicing_f0_max  # fs/400
     t_hi = fs / cfg.voicing_f0_min  # fs/40
@@ -97,7 +97,7 @@ def cycle_framework(
         framek[ig] = a + matlab_round((b - a) / 2)  # centre of the untrimmed interval
         period = nn.size - 2  # the reference's T = len(nn) - 2
         if t_lo < period < t_hi:
-            vuv[ig] = 1.0
+            frame_len_ok[ig] = 1.0
         with np.errstate(divide="ignore"):
             f0[ig] = fs / period
-    return f0, framek, vuv
+    return f0, framek, frame_len_ok

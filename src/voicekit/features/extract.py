@@ -18,7 +18,7 @@ from voicekit.features.spectral import spectral_statistics
 from voicekit.features.timing import timing_statistics
 
 # Features zeroed on a no-open-phase (O1==0) cycle, per the reference's degenerate
-# branch. f0/framek/vuv/h1h2/hrf are intentionally NOT in this set.
+# branch. f0/framek/frame_len_ok/h1h2/hrf are intentionally NOT in this set.
 _O1_ZERO_SUBSET = ("cq", "qoq", "mfdr", "pa", "naq")
 
 
@@ -63,7 +63,7 @@ def extract_voice_features(
     # One shared per-cycle prep; the signal groups consume it (gci is 0-based -- the
     # single 0->1-based conversion lives in iter_cycle_segments, gciP=[1,gci+1,n]).
     preps = prepare_cycles(u, uu, gci, fs, cfg)
-    raw_f0, raw_framek, raw_vuv = cycle_framework(gci, u.size, fs, cfg)
+    raw_f0, raw_framek, raw_frame_len_ok = cycle_framework(gci, u.size, fs, cfg)
     raw_mfdr, raw_pa, raw_naq = flow_statistics(preps, fs)
     raw_cq, raw_qoq = timing_statistics(preps)
     raw_h1h2, raw_hrf = spectral_statistics(preps, fs, cfg)
@@ -79,7 +79,7 @@ def extract_voice_features(
     return VoiceFeatures(
         f0=raw_f0[1:],
         framek=(raw_framek[1:] - 1).astype(np.int64),  # 1-based -> 0-based
-        vuv=raw_vuv[1:] == 1.0,
+        frame_len_ok=raw_frame_len_ok[1:] == 1.0,
         mfdr=raw["mfdr"][1:],
         pa=raw["pa"][1:],
         naq=raw["naq"][1:],

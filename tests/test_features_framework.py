@@ -1,6 +1,6 @@
-"""Tests for the per-cycle feature framework (f0, framek, vuv).
+"""Tests for the per-cycle feature framework (f0, framek, frame_len_ok).
 
-Parity (the gate): the raw per-interval f0/framek/vuv reproduce the captured
+Parity (the gate): the raw per-interval f0/framek/frame_len_ok reproduce the captured
 reference arrays, all three fixtures, machine-epsilon. Fed the captured u/gci as
 data (u only for its length here).
 
@@ -31,15 +31,17 @@ FIXTURES = ["vowel_f0100_16k", "vowel_glide_16k", "vowel_f0120_8k"]
 
 @pytest.mark.parametrize("name", FIXTURES)
 def test_framework_matches_capture(name):
-    """Raw f0/framek/vuv reproduce the captured reference arrays."""
+    """Raw f0/framek/frame_len_ok reproduce the captured reference arrays."""
     d = np.load(GOLDEN / f"{name}.npz")
     fs = float(d["input_fs"])
     gci = d["gci"].astype(np.int64) - 1  # 0-based (GciResult convention)
-    f0, framek, vuv = cycle_framework(gci, d["feat_u"].size, fs)
+    f0, framek, frame_len_ok = cycle_framework(gci, d["feat_u"].size, fs)
 
     np.testing.assert_allclose(f0, d["feat_f0"], rtol=1e-12, atol=1e-12)
     np.testing.assert_array_equal(framek, d["feat_framek"])
-    np.testing.assert_array_equal(vuv, d["feat_vuv"])
+    # Our field is ``frame_len_ok``; the capture key stays ``feat_vuv`` -- it names
+    # the MATLAB reference variable (``vuv``), deliberately preserved, not renamed.
+    np.testing.assert_array_equal(frame_len_ok, d["feat_vuv"])
 
 
 # --- Synthetic certification (the flashlight) -------------------------------
@@ -58,7 +60,7 @@ def test_synthetic_constant_pitch_certifies_framework():
     fs, period = 16000.0, 160
     gci = np.arange(period, 20 * period + 1, period, dtype=np.int64) - 1  # 0-based, evenly spaced
     n_samples = int(gci[-1] + period)
-    f0, _framek, vuv = cycle_framework(gci, n_samples, fs)
+    f0, _framek, frame_len_ok = cycle_framework(gci, n_samples, fs)
 
     interior = slice(1, -1)  # drop both edge intervals for the clean check
     # Framework computes the reference convention fs/(period-1), exactly.
@@ -66,8 +68,8 @@ def test_synthetic_constant_pitch_certifies_framework():
     # ... which is the ~0.63% overestimate of the true pitch, by design (observation).
     assert abs(f0[1] - fs / period) > 0.5  # not fs/period
     assert abs(f0[1] - fs / (period - 1)) < 1e-9  # is fs/(period-1)
-    # Voicing: interior cycles (100 Hz) are within (40, 400) Hz -> voiced.
-    assert np.all(vuv[interior] == 1.0)
+    # Frame length: interior cycles (100 Hz) have a period in (40, 400) Hz -> flagged.
+    assert np.all(frame_len_ok[interior] == 1.0)
 
 
 def test_synthetic_voicing_bounds():
@@ -75,8 +77,8 @@ def test_synthetic_voicing_bounds():
     fs = 16000.0
     # Period ~1000 samples -> 16 Hz, below voicing_f0_min=40 -> unvoiced.
     gci = np.arange(1000, 5001, 1000, dtype=np.int64) - 1  # 0-based
-    f0, _framek, vuv = cycle_framework(gci, int(gci[-1] + 1000), fs)
-    assert np.all(vuv[1:-1] == 0.0)  # interior cycles are unvoiced (too low)
+    f0, _framek, frame_len_ok = cycle_framework(gci, int(gci[-1] + 1000), fs)
+    assert np.all(frame_len_ok[1:-1] == 0.0)  # interior cycles out of range (too low)
 
 
 # --- Shape ------------------------------------------------------------------
@@ -91,13 +93,13 @@ def test_extract_shape_is_gci_aligned(name):
     vf = extract_voice_features(d["feat_u"], d["udash"], fs, gci0)
 
     n = gci0.size
-    for field in ("f0", "framek", "vuv", "mfdr", "cq", "pa", "naq", "h1h2", "hrf", "qoq"):
+    for field in ("f0", "framek", "frame_len_ok", "mfdr", "cq", "pa", "naq", "h1h2", "hrf", "qoq"):
         assert getattr(vf, field).shape == (n,), field
     # Populated framework fields equal the captured raw arrays with the left edge
     # dropped; framek converted to 0-based.
     np.testing.assert_allclose(vf.f0, d["feat_f0"][1:])
     np.testing.assert_array_equal(vf.framek, d["feat_framek"][1:].astype(np.int64) - 1)
-    np.testing.assert_array_equal(vf.vuv, d["feat_vuv"][1:] == 1.0)
+    np.testing.assert_array_equal(vf.frame_len_ok, d["feat_vuv"][1:] == 1.0)  # capture key kept
     # Framework fields are populated (the rest are covered by their own groups).
     assert not np.all(np.isnan(vf.f0))
 

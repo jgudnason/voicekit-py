@@ -648,22 +648,30 @@ needs an internal energy/silence pre-gate feeding the voiced/unvoiced decision.
   fixture, not bolted on.
 - **Status:** open design finding for the detector sub-gate.
 
-### VUV2. `VoiceFeatures.vuv` is a misleading name — an active namespace hazard
+### VUV2. `VoiceFeatures.vuv` renamed to `frame_len_ok` — namespace hazard resolved
 
-`VoiceFeatures.vuv` (`features/result.py`) is the reference's per-cycle
-**frame-length sanity flag** — a cycle whose period puts F0 in (40, 400) Hz —
-faithfully reproduced, **not** a voicing verdict. The name has always been
-misleading; with a real voicing output (`VoicingTrack.voiced`) now landing
-beside it, the confusion is **active, not latent**: a reader will reasonably
-expect `vuv` to be the voicing detector.
+`VoiceFeatures.vuv` was the reference's per-cycle **frame-length sanity flag** — a
+cycle whose period puts F0 in (40, 400) Hz — faithfully reproduced, **not** a
+voicing verdict. Its name invited misreading as a voicing output, a hazard that
+would become active once `VoicingTrack.voiced` lands beside it.
 
-- **Mitigation this round:** naming the new track `voicing` (field `voiced`)
-  sidesteps the collision. Renaming `vuv` itself is a `features/` change deferred
-  as a follow-up and ledgered here so the two are never conflated.
-- **Severity:** real, not cosmetic. (This `vuv` is the frame-length flag kept
-  distinct from the step-7 classifier throughout the step-7 gates; cf. V3 for
-  another reproduced naming oddity in the same feature reference.)
-- **Status:** open follow-up; rename gated on a `features/` touch.
+- **Resolution:** the field (and `cycle_framework`'s local/return) is renamed to
+  **`frame_len_ok`** — named for the predicate it computes (`fs/400 < T < fs/40`),
+  so it can never be read as a voicing decision. Pure rename, value and
+  computation unchanged; the existing value guards stayed green with only the
+  identifier updated (that green is the proof). Done *before* any classifier code,
+  so the classifier is written against unambiguous names from its first line.
+- **Capture key preserved (a deliberate asymmetry):** the golden `.npz` still
+  store this array under `feat_vuv`, which names the **MATLAB reference** variable
+  `vuv` (the reference's own name for its 10th output). Only the Python field was
+  renamed; the capture key was not, because it documents the reference, not our
+  API. The parity assertions (`test_features_framework.py`,
+  `test_features_extract.py`) carry an inline note making the `frame_len_ok` ↔
+  `feat_vuv` mapping legible so the preserve-not-rename asymmetry is not mistaken
+  for stale drift. (cf. V3 for another reproduced naming oddity in the same
+  feature reference.)
+- **Status:** resolved. (`VoicingTrack.voiced` itself is still unbuilt — it
+  arrives with the classifier.)
 
 ### VUV3. Discriminating fixtures prove *sufficiency-elimination* only, never necessity
 
