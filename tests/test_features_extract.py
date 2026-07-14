@@ -176,4 +176,5 @@ def test_c4_o1_zero_cycle_decomposition():
     assert vf.f0[i] != 0.0  # f0 is NOT masked (reference still sets 1/Ttime)
     assert np.isfinite(vf.h1h2[i]) and np.isfinite(vf.hrf[i])  # spectral not masked
     for i_n in (0, 2):  # composed neighbors of the notch cycle
-        assert all(v != 0.0 for v in (vf.mfdr[i_n], vf.pa[i_n], vf.naq[i_n], vf.cq[i_n], vf.qoq[i_n]))
+        vals = (vf.mfdr[i_n], vf.pa[i_n], vf.naq[i_n], vf.cq[i_n], vf.qoq[i_n])
+        assert all(v != 0.0 for v in vals)

@@ -57,7 +57,8 @@ def test_capture_is_stored_crossed():
     d = np.load(GOLDEN / "vowel_f0100_16k.npz")
     fs = float(d["input_fs"])
     gci = d["gci"].astype(np.int64) - 1  # 0-based (GciResult convention)
-    h1h2_out, hrf_out = spectral_statistics(prepare_cycles(d["feat_u"], d["udash"], gci, fs), fs)  # already crossed
+    prep = prepare_cycles(d["feat_u"], d["udash"], gci, fs)
+    h1h2_out, hrf_out = spectral_statistics(prep, fs)  # already crossed
     # h1h2_out holds HRF and matches captured "h1h2"; it does NOT match captured "hrf".
     assert np.allclose(h1h2_out, d["feat_h1h2"], rtol=1e-11, atol=1e-13)
     assert not np.allclose(h1h2_out, d["feat_hrf"], rtol=1e-11, atol=1e-13)

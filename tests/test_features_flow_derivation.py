@@ -52,4 +52,6 @@ def test_derive_flow_cutoff_is_tunable():
     """The cutoff is a plain argument (not a FeaturesConfig knob); it changes u."""
     fs = 16000.0
     udash = np.load(GOLDEN / "vowel_f0100_16k.npz")["udash"]
-    assert not np.array_equal(derive_flow(udash, fs, cutoff_hz=10.0), derive_flow(udash, fs, cutoff_hz=50.0))
+    u10 = derive_flow(udash, fs, cutoff_hz=10.0)
+    u50 = derive_flow(udash, fs, cutoff_hz=50.0)
+    assert not np.array_equal(u10, u50)

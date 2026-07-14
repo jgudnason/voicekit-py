@@ -6,8 +6,6 @@ prep so ``useg``/``uuseg``, the DC-shift, and ``O1`` are computed once; the seam
 applies the ``O1==0`` mask over the five timing/flow features.
 """
 
-from collections.abc import Sequence
-
 import numpy as np
 import numpy.typing as npt
 
