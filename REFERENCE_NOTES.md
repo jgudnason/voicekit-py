@@ -749,3 +749,30 @@ tail.
   can bin by difficulty. (D2 exports VFR, D3 exports HNR, for the same reason.)
 - **Status:** a requirement on the (deferred) scorer, not on the fixture. See
   DESIGN.md §9 item 7.
+
+### VUV6. VUV frame grid locked: 32 ms / 10 ms, its own config, independent of IAIF
+
+The voicing frame grid is locked at **32 ms frames / 10 ms hop** (the Atal-Rabiner
+voicing-analysis standard), in `VoicingGrid` (`src/voicekit/vuv/grid.py`) — its own
+config, **not** derived from `IaifConfig`. @16 kHz: `frame_len` 512, `hop` 160,
+guard band **W = 512/2 + 160/2 = 336** samples; @8 kHz: 256 / 80 / 168.
+
+- **Why its own config (the hop was the live decision).** `VoicingGrid` and
+  `IaifConfig` share a 32 ms frame length by **coincidence**; they differ on hop
+  (10 vs IAIF's 16 ms) and serve different purposes (voicing vs inverse filtering).
+  The hop was settled by the LPC-source question: the Atal-Rabiner LPC-derived
+  features (**`alp1`, `Ep`** — *not* `C1`, which is direct unit-lag autocorrelation
+  off the frame) recompute **covariance** LPC at order 16 on the **raw input** at
+  VUV timing, so they do **not** read IAIF's per-frame LPC output (different method,
+  order 20/4/20, pre-emphasised signal, 32/16 grid). The grids are therefore
+  independent and the hop is sized for voicing. A "DRY the two 32 ms constants"
+  refactor must not couple them — `test_vuv_grid` enforces this structurally.
+- **Projection pinned.** Nearest-centre, `round((s-(frame_len-1)/2)/hop)`, is the
+  single source in `VoicingGrid.project` for the derived mask's GCI→frame lookup.
+- **Input-neutrality (ratified) + resample clause.** The grid is applied at the
+  signal's own fs with **no internal resample**, so the frame centres are identical
+  whatever signal is framed (raw/residual/flow) and locking the grid commits none
+  of the open input leans. A later classifier-design choice to resample to a fixed
+  internal rate would **re-open** grid neutrality and must be co-decided then.
+- **Status:** grid locked and single-sourced; W numeric; projection pinned. The
+  threshold, feature set, and track/detector logic remain at the sub-gate.

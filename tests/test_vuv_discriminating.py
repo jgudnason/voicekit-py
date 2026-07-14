@@ -22,25 +22,15 @@ sys.path.insert(0, str(SYNTH_DIR))
 from vuv_fixture import load_discriminating_fixture  # noqa: E402
 
 from voicekit.features import apply_cycle_mask, derive_flow, extract_voice_features  # noqa: E402
+from voicekit.vuv.grid import VoicingGrid  # noqa: E402
 from voicekit.yaga import yaga  # noqa: E402
 
 D1 = "vuv_d1_offset_16k"
 
-# The guard band is symbolic — W = frame_len/2 + hop/2, tied to the frame grid,
-# which is NOT locked until the classifier sub-gate. It is evaluated here only to
-# give the margin assertion a concrete lower bound, at the *reference* 32/10 ms
-# grid (C's numbers, per DESIGN.md item 7 — a reference, not the locked grid),
-# derived from fs so no sample count is hardcoded. D1's tail spans far past W, so
-# the assertion holds for any grid at or below this reference.
-def guard_band(frame_len: int, hop: int) -> float:
-    """W = frame_len/2 + hop/2 (window straddle + frame-lookup alignment slack)."""
-    return frame_len / 2 + hop / 2
-
-
-def _reference_grid_W(fs: int) -> float:
-    frame_len = round(0.032 * fs)  # reference frame length (32 ms)
-    hop = round(0.010 * fs)  # reference hop (10 ms)
-    return guard_band(frame_len, hop)
+# The guard band W = frame_len/2 + hop/2 is sourced from the locked VoicingGrid
+# (32/10 ms) -- single source, no hardcoded durations here. At 16 kHz W = 336.
+def _grid_W(fs: int) -> float:
+    return VoicingGrid().guard_band_samples(fs)
 
 
 def _label_at(fx, sample: int) -> str:
@@ -84,7 +74,7 @@ def test_d1_mask_exercise_runs_on_live_yaga():
     gci = yaga(fx.signal).gcis.gci  # live detector output, not a construction list
 
     t3, tso = _kind_span(fx, "subfloor_residual")
-    W = _reference_grid_W(fx.fs)
+    W = _grid_W(fx.fs)
 
     # (1) a detected non-voiced GCI, past the V->N boundary by >= W (outside the
     #     guard band -> an unambiguous non-voiced closure, not a don't-care).
@@ -117,7 +107,7 @@ def test_d1_derived_mask_nans_nonvoiced_cycle_keeps_voiced_finite():
     mask = np.array([_label_at(fx, int(g)) == "N" for g in gci], dtype=bool)
 
     t3, tso = _kind_span(fx, "subfloor_residual")
-    W = _reference_grid_W(fs)
+    W = _grid_W(fs)
     steady_lo, steady_hi = _kind_span(fx, "voiced_steady")
     subset = ("mfdr", "pa", "naq", "cq", "qoq")
 
