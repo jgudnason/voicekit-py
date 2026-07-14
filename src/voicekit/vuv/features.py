@@ -1,0 +1,133 @@
+"""Atal-Rabiner per-frame voicing features: Nz, Es, C1, alp1, Ep.
+
+Reproduces the feature definitions of ``inriaGIF/vus/vuvMeasurements.m`` (Jon
+Gudnason 2004; after Atal & Rabiner 1976) -- **the definitions, reproduced from
+the formulas, not ported**. This is the FEATURE SET only: it emits the per-frame
+feature matrix, no voicing label, no threshold, no decision.
+
+The features ride the locked `VoicingGrid` (one framing for all five). Two of the
+five are direct frame statistics (``Nz``, ``C1``); the other three come from a
+single covariance-LPC per frame (``alp1``, ``Es``, ``Ep`` share one `lpc_covar`
+call, reading its coefficients, signal energy, and residual energy).
+
+Reference quirks are reproduced exactly and quarantined behind the (deferred)
+VUV1 pre-gate -- see REFERENCE_NOTES "Step 7 (VUV)":
+  - the reference's ``eps`` guard is disabled (``eps=0``), so a zero-energy frame
+    yields ``Es = -inf`` and ``Ep = NaN``, and a silent frame yields ``C1 = NaN``;
+  - ``C1``'s boundary term reaches one sample *before* the frame and is broadcast
+    across the N-1 products (it enters N-1 times), making ``C1`` unbounded above
+    -- reproduced, not corrected (VUV7/VUV8);
+  - ``Nz`` takes the sign as ``>= 0`` (zero counts non-negative);
+  - the history-less first frame (start 0) is undefined and routed to the same
+    pre-gate path as silence -- never computed from ``s[-1]`` (the signal tail).
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+
+import numpy as np
+import numpy.typing as npt
+
+from voicekit.lpc import lpc_covar
+from voicekit.signal import Signal
+from voicekit.vuv.grid import VoicingGrid
+
+
+@dataclass(frozen=True)
+class VuvFeaturesConfig:
+    """Config for the VUV feature layer -- features only.
+
+    Distinct from the deferred *threshold* config (VUV1's ``VuvConfig``): this
+    carries only the framing (`VoicingGrid`) and the covariance-LPC order
+    (``nar``, the Atal-Rabiner default 16).
+    """
+
+    grid: VoicingGrid = field(default_factory=VoicingGrid)
+    lpc_order: int = 16
+
+
+@dataclass(frozen=True)
+class FrameFeatures:
+    """Per-frame Atal-Rabiner feature matrix; one row per `VoicingGrid` frame.
+
+    **Not a voicing track** -- no labels. Degenerate frames (silence; the
+    history-less first frame) carry the reference's reproduced ``-inf``/``NaN``,
+    quarantined behind the deferred VUV1 pre-gate: a consumer must check
+    ``np.isnan``/``np.isinf`` before use. ``frame_centers`` are 0-based sample
+    positions from `VoicingGrid.frame_centers`.
+    """
+
+    nz: npt.NDArray[np.float64]
+    es: npt.NDArray[np.float64]
+    c1: npt.NDArray[np.float64]
+    alp1: npt.NDArray[np.float64]
+    ep: npt.NDArray[np.float64]
+    frame_centers: npt.NDArray[np.float64]
+
+    @property
+    def n_frames(self) -> int:
+        return len(self.nz)
+
+
+def extract_frame_features(
+    signal: Signal, config: VuvFeaturesConfig | None = None
+) -> FrameFeatures:
+    """Compute the five per-frame features over ``signal`` on the VoicingGrid."""
+    cfg = config if config is not None else VuvFeaturesConfig()
+    s = np.asarray(signal.samples, dtype=np.float64)
+    fs = float(signal.fs)
+    nar = cfg.lpc_order
+    frame_len = cfg.grid.frame_len(fs)
+    hop = cfg.grid.hop(fs)
+    centers = cfg.grid.frame_centers(len(s), fs)
+    n = len(centers)
+
+    nz: npt.NDArray[np.float64] = np.empty(n, dtype=np.float64)
+    es: npt.NDArray[np.float64] = np.empty(n, dtype=np.float64)
+    c1: npt.NDArray[np.float64] = np.empty(n, dtype=np.float64)
+    alp1: npt.NDArray[np.float64] = np.empty(n, dtype=np.float64)
+    ep: npt.NDArray[np.float64] = np.empty(n, dtype=np.float64)
+
+    # Reproduce the disabled-eps degeneracies (log10(0) -> -inf, 0/0 -> NaN)
+    # silently; these are the intended reference values, not numerical accidents.
+    with np.errstate(divide="ignore", invalid="ignore"):
+        for k in range(n):
+            start = k * hop
+            frame = s[start : start + frame_len]
+            # Nz: history-free, defined for every frame. Sign via >= 0 (reproduce),
+            # transitions of the sign sequence summed.
+            nz[k] = float(np.sum(np.abs(np.diff((frame >= 0.0).astype(np.int64)))))
+
+            if start < nar:
+                # No nar-sample covariance history (and no s[start-1] for C1's s0).
+                # Undefined -> routed to the same pre-gate path as silence. Guarding
+                # here is what prevents s[start-1] == s[-1] silently wrapping to the
+                # signal tail and computing a spurious finite C1 (VUV pin).
+                es[k] = c1[k] = alp1[k] = ep[k] = np.nan
+                continue
+
+            # One covariance LPC over the pre-frame-history window reproduces
+            # v_lpccovar (predict the frame w[nar:] from the history w[:nar]).
+            w = s[start - nar : start + frame_len]
+            res = lpc_covar(w, nar)
+            sig_e = res.signal_energy
+            assert sig_e is not None  # covariance solver always sets it (commit 1)
+            alp1[k] = res.a[1]
+            es[k] = 10.0 * np.log10(sig_e / frame_len)  # eps disabled: 0 -> -inf
+            ep[k] = es[k] - 10.0 * np.log10(res.error / frame_len)
+
+            # C1: lag-1 with the boundary sample s0 = s[start-1], reaching one
+            # sample before the frame. Reproduced quirk (VUV7): the NUMERATOR
+            # boundary term frame[0]*s0 is broadcast across the N-1 products
+            # (MATLAB vector+scalar) so it enters N-1 times, while the DENOMINATOR
+            # carries s0 once (one element of [s0, frame[:-1]]). That asymmetry is
+            # why C1 is unbounded above (VUV8) -- do NOT collapse it to add-once.
+            # Silent frame -> ssq=0 -> 0/0 = NaN.
+            s0 = s[start - 1]
+            ssq = float(frame @ frame)
+            shifted = np.concatenate(([s0], frame[:-1]))
+            num = float(np.sum(frame[1:] * frame[:-1] + frame[0] * s0))
+            c1[k] = num / np.sqrt(ssq * float(shifted @ shifted))
+
+    return FrameFeatures(nz=nz, es=es, c1=c1, alp1=alp1, ep=ep, frame_centers=centers)

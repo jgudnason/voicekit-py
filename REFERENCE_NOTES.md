@@ -790,3 +790,69 @@ guard band **W = 512/2 + 160/2 = 336** samples; @8 kHz: 256 / 80 / 168.
   internal rate would **re-open** grid neutrality and must be co-decided then.
 - **Status:** grid locked and single-sourced; W numeric; projection pinned. The
   threshold, feature set, and track/detector logic remain at the sub-gate.
+
+### VUV7. C1 is doubly load-bearing — a single point of failure the fixture cannot catch
+
+`C1` (`vuv/features.py`) is simultaneously the **sole** floor separator — it alone
+separates the D2/D3 RMS-matched pairs (`Ep` **inverts** on D2: order-16 LPC models
+the peaky frication noise more efficiently than the broadband voiced mix, ~+2.97 V
+vs +5.84 N; `alp1` tracks tilt, decoupled from voicing by D3; `Nz` only ~3%), so
+the fixture's whole energy-only-rejection verdict rests on it — **and** the feature
+the decision-rule noise-null threshold will apply to. The roles are coupled: a bug
+in C1's reproduction collapses both, and the floor **cannot** catch it, because the
+floor assertion *is* "C1 separates" — a wrong C1 that still separates passes.
+
+- **Reproduce-the-definition payload — a numerator/denominator `s0` asymmetry
+  (surfaced quirk, reproduced not corrected).** The reference line is
+  `sum(s(2:end).*s(1:end-1)+s(1)*s0) / sqrt(ssq*([s0; s(1:end-1)]'*[s0; s(1:end-1)]))`
+  ([vuvMeasurements.m:89](inriaGIF/vus/vuvMeasurements.m)). By MATLAB semantics
+  (`s` is `N×1` since `sp=sp(:)`; `s(1)*s0` is a **scalar**; `(N-1)×1 vector +
+  scalar` broadcasts the scalar), the **numerator** boundary term `s(1)*s0` enters
+  **N-1 times**: `Σ(s(2:end).*s(1:end-1)) + (N-1)·s(1)·s0`. The **denominator**'s
+  `[s0; s(1:end-1)]` is an `N×1` vector with `s0` as **one element**, so its `s0`
+  enters **once**. That numerator-broadcast/denominator-once asymmetry breaks
+  Cauchy-Schwarz and is exactly why C1 is **unbounded above** (>1; 1.448 measured
+  on D3). The author almost certainly *intended* add-once (a proper normalized
+  cross-correlation, bounded [-1,1]), but the code broadcasts — reproduced
+  faithfully (the parity capture matches MATLAB only if we broadcast), **not
+  corrected to add-once**. The floor verdict (C1 separates) holds under *either*
+  reading; only the unboundedness (and thus VUV8) depends on the broadcast.
+- **Mitigation (its remedy travels with it):** the fixture cannot catch a
+  wrong-but-separating C1, so C1's fidelity needs the **strongest** verification of
+  the five — hand-computed synthetic-known-value tests isolating the `s0` reach,
+  the broadcast, the denominator (`tests/test_vuv_features.py`), **and** the
+  `vuvMeasurements` machine-ε **parity capture (commit 3, REQUIRED)**. **VUV7 stays
+  OPEN until that parity capture lands** — the features are not fully verified
+  without it.
+- **Status:** open (pending the parity capture); C1 gets the most scrutiny, not
+  equal, wherever it is touched.
+
+### VUV8. BLOCKING: re-derive the C1 noise null for the reference formula before any threshold
+
+The ratified threshold provenance (VUV1) is "normalized-autocorrelation std
+≈ 1/√N over an aperiodic frame." That null is the **textbook bounded** autocorrelation's
+([-1, 1]). The reference C1 — via the numerator-broadcast/denominator-once `s0`
+asymmetry (VUV7) — is **unbounded above** (1.448 measured on D3), so the 1/√N
+result does not apply. (Had the boundary term been add-once/symmetric, C1 would be
+a bounded normalized cross-correlation and 1/√N would hold — so this BLOCKING item
+exists *because of* the reproduced broadcast quirk, not despite it.)
+
+- **BLOCKING precondition:** the decision-rule instantiation may **not** proceed
+  until the noise null is **re-derived analytically for the reference C1's actual
+  formula** (with the broadcast `s0` term).
+- **The trap:** with 1/√N invalid, the pressure is to instead *measure* C1's
+  distribution on D2/D3's noise regions — which is fitting-to-the-fixture, the exact
+  circularity the gate order (fixture ratified before any threshold) exists to
+  prevent. The out-of-sample guarantee survives only if the null is re-derived
+  analytically for the real formula, never measured off the fixture.
+- **Status:** BLOCKING on the decision-rule gate. Cross-ref VUV7 (same feature).
+
+### VUV9. Coverage gap: no fixture exercises a rate where reference `ceil` ≠ VoicingGrid `round`
+
+`vuvMeasurements` frames with `ceil(dur·fs)`; the locked `VoicingGrid` uses `round`.
+They **coincide at 8 kHz and 16 kHz** (exact products), which is every current
+fixture — so `round` wins with no conflict, and reference-`ceil` is reproduced
+where coincident. But no fixture exercises a rate where `ceil ≠ round`, so that
+divergence is **tracked, not assumed**. If such a rate is ever added, the feature
+framing (`VoicingGrid.round`) and the reference (`ceil`) will diverge by a sample
+and must be reconciled. Coverage-gap-style item, VUV-local. Status: open gap.
