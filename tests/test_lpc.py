@@ -137,6 +137,28 @@ class TestLpcCovar:
         with pytest.raises(ValueError, match="length"):
             lpc_covar(np.zeros(100), order=4, weights=np.ones(50))
 
+    def test_signal_energy_equals_target_sum_of_squares(self) -> None:
+        # signal_energy is the energy of exactly the samples the residual is
+        # measured over (x[order:]), so a caller (VUV Es/Ep) gets consistent
+        # signal and residual energy from one call.
+        x = ar_process(TRUE_A, 500)
+        result = lpc_covar(x, order=4)
+        assert result.signal_energy == float(x[4:] @ x[4:])
+
+    def test_signal_energy_is_unweighted(self) -> None:
+        # v_lpccovar's signal-energy column is the plain window energy; weighting
+        # affects the residual/error, not the signal energy.
+        x = ar_process(TRUE_A, 500)
+        w = np.ones(len(x))
+        w[100:200] = 0.3
+        assert lpc_covar(x, order=4, weights=w).signal_energy == pytest.approx(
+            lpc_covar(x, order=4).signal_energy
+        )
+
+    def test_lpc_auto_leaves_signal_energy_none(self) -> None:
+        # Additive and backward-compatible: only the covariance path sets it.
+        assert lpc_auto(ar_process(TRUE_A, 500), order=4).signal_energy is None
+
     def test_rejects_short_frame(self) -> None:
         with pytest.raises(ValueError, match="too short"):
             lpc_covar(np.zeros(8), order=4)

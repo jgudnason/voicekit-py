@@ -68,4 +68,8 @@ def lpc_covar(
     a = np.concatenate(([1.0], coef))
     residual = target + past @ coef
     error = float(w @ (residual * residual))
-    return LpcResult(a=a, error=error)
+    # Signal energy over the same target samples the residual is measured on --
+    # unweighted (v_lpccovar's e(:,2)), so a caller reads both energies from one
+    # call (e.g. the VUV Es/Ep features single-source their energies here).
+    signal_energy = float(target @ target)
+    return LpcResult(a=a, error=error, signal_energy=signal_energy)

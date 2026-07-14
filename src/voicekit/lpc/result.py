@@ -20,11 +20,19 @@ class LpcResult:
 
     ``reflection`` holds the reflection coefficients when the solver
     produces them (autocorrelation method only).
+
+    ``signal_energy`` is the (unweighted) energy of the analyzed *target*
+    samples -- the same samples the residual ``error`` is evaluated over. It
+    mirrors the signal-energy column of VOICEBOX ``v_lpccovar``'s ``e`` output
+    (``e(:,2)``), so a caller can read both the signal and residual energy from
+    one analysis. Only the covariance solver sets it; the autocorrelation solver
+    leaves it ``None``.
     """
 
     a: npt.NDArray[np.float64]
     error: float
     reflection: npt.NDArray[np.float64] | None = None
+    signal_energy: float | None = None
 
     @property
     def order(self) -> int:
