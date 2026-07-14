@@ -646,6 +646,20 @@ needs an internal energy/silence pre-gate feeding the voiced/unvoiced decision.
   the hard cases the detector exists for) through the front door. The silence
   stage must be designed deliberately at the sub-gate, against a discriminating
   fixture, not bolted on.
+- **Threshold provenance (established for periodicity only; open for the pre-gate).**
+  The decision-rule sub-gate settled the *periodicity* threshold's provenance: the
+  analytic noise null (normalized autocorrelation std ≈ 1/√N at the locked grid's
+  frame length N), with a dimensionless significance knob in `VuvConfig` and the
+  concrete number derived at runtime from knob + N — structurally out-of-sample
+  from D1/D2/D3, derived from the generic null and **never** measured off the
+  fixture's noise regions. **That provenance covers the periodicity separator
+  only.** If the rule carries a silence/energy pre-gate, its threshold requires
+  its **own** separately-named, out-of-sample calibration source, re-confirmed
+  when it is designed. The acute reason: an energy pre-gate is an *energy*
+  threshold, and energy is the very feature **D1 was constructed to defeat** — so
+  calibrating it by reference to D1/D2/D3 is the floor-fixture-trap circularity in
+  its most direct form. The pre-gate must not acquire a threshold later without
+  its provenance re-confirmed out-of-sample. Flag, not design.
 - **Status:** open design finding for the detector sub-gate.
 
 ### VUV2. `VoiceFeatures.vuv` renamed to `frame_len_ok` — namespace hazard resolved
