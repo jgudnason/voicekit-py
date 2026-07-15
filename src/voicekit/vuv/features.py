@@ -7,8 +7,10 @@ feature matrix, no voicing label, no threshold, no decision.
 
 The features ride the locked `VoicingGrid` (one framing for all five). Two of the
 five are direct frame statistics (``Nz``, ``C1``); the other three come from a
-single covariance-LPC per frame (``alp1``, ``Es``, ``Ep`` share one `lpc_covar`
-call, reading its coefficients, signal energy, and residual energy).
+single **DC-offset** covariance-LPC per frame (``alp1``, ``Es``, ``Ep`` share one
+`lpc_covar(..., dc_offset=True)` call, matching the reference's three-output
+``[ar,e,dc]=lpccovar(...)`` — reading its coefficients, signal energy, and
+residual energy).
 
 Reference quirks are reproduced exactly and quarantined behind the (deferred)
 VUV1 pre-gate -- see REFERENCE_NOTES "Step 7 (VUV)":
@@ -109,8 +111,12 @@ def extract_frame_features(
 
             # One covariance LPC over the pre-frame-history window reproduces
             # v_lpccovar (predict the frame w[nar:] from the history w[:nar]).
+            # dc_offset=True matches the reference's THREE-output call
+            # `[ar,e,dc]=lpccovar(...)`, which fits the AR about a jointly-fitted DC
+            # level: alp1 (ar) and Ep (residual energy) come from that DC-included
+            # fit. Es reads signal_energy, which is DC-independent (unchanged).
             w = s[start - nar : start + frame_len]
-            res = lpc_covar(w, nar)
+            res = lpc_covar(w, nar, dc_offset=True)
             sig_e = res.signal_energy
             assert sig_e is not None  # covariance solver always sets it (commit 1)
             alp1[k] = res.a[1]
