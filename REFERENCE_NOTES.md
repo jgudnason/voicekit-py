@@ -869,25 +869,49 @@ floor assertion *is* "C1 separates" — a wrong C1 that still separates passes.
 - **Status:** **CLOSED.** C1 still gets the most scrutiny wherever touched; VUV8
   (below) remains open and independent.
 
-### VUV8. BLOCKING: re-derive the C1 noise null for the reference formula before any threshold
+### VUV8. Reference-C1 null derived — a normal-product (not 1/√N), and C1 is per-frame-unviable
 
-The ratified threshold provenance (VUV1) is "normalized-autocorrelation std
-≈ 1/√N over an aperiodic frame." That null is the **textbook bounded** autocorrelation's
-([-1, 1]). The reference C1 — via the numerator-broadcast/denominator-once `s0`
-asymmetry (VUV7) — is **unbounded above** (1.448 measured on D3), so the 1/√N
-result does not apply. (Had the boundary term been add-once/symmetric, C1 would be
-a bounded normalized cross-correlation and 1/√N would hold — so this BLOCKING item
-exists *because of* the reproduced broadcast quirk, not despite it.)
+The ratified provenance (VUV1) was "autocorrelation std ≈ 1/√N over an aperiodic
+frame" — the **textbook bounded** autocorrelation's null. The reference C1, via the
+numerator-broadcast/denominator-once `s0` asymmetry (VUV7), is unbounded, so 1/√N
+does not apply. **The null is now derived analytically for the actual formula —
+full derivation and predictions in [docs/vuv8_c1_null.md](docs/vuv8_c1_null.md).**
 
-- **BLOCKING precondition:** the decision-rule instantiation may **not** proceed
-  until the noise null is **re-derived analytically for the reference C1's actual
-  formula** (with the broadcast `s0` term).
-- **The trap:** with 1/√N invalid, the pressure is to instead *measure* C1's
-  distribution on D2/D3's noise regions — which is fitting-to-the-fixture, the exact
-  circularity the gate order (fixture ratified before any threshold) exists to
-  prevent. The out-of-sample guarantee survives only if the null is re-derived
-  analytically for the real formula, never measured off the fixture.
-- **Status:** BLOCKING on the decision-rule gate. Cross-ref VUV7 (same feature).
+- **The null is a normal-product, not a correlation statistic.** The broadcast
+  boundary term `B = (N-1)·s[0]·s0` carries **~99.8%** of the numerator variance
+  (std `N-1 ≈ 511` vs the lag-1 sum's std `√(N-1) ≈ 22.6`; the full `Var[P]=N-1`
+  sum is in the doc), so under the null `C1 ≈ s[0]·s0` — the product of two
+  boundary samples, density `K_0(|z|)/π`. `E[C1]=0`; **`std[C1] ≈ 1`
+  (≈√((N-1)/N)), essentially N-independent** — larger than the textbook `1/√N ≈
+  0.044` by `√N ≈ 22.6`. A textbook-null threshold (~0.073) vs the correct one
+  (~1.7) differ by **~23×**; the wrong one passes nearly every noise frame as
+  voiced. That factor is why the item was blocking.
+- **Coloured-noise honesty:** real fixture noise is coloured (`s0` adjacent to
+  `s[0]`), giving `E[C1] ≈ 2ρ` — the white null is **optimistic** (threshold too
+  low → false positives) for positively-correlated noise, conservative for
+  high-pass (D2). The white null cannot be assumed safe; a coloured null needs ρ.
+- **Per-frame unviability (a FINDING, not a caveat):** the null's O(1) spread is a
+  **single boundary product**, not an average, so it does **not concentrate with
+  N** — `std ≈ 1` at any frame length, while voiced sits at `2ρ_v ≈ 1.4`; the two
+  overlap heavily frame-by-frame. No threshold fixes this — it is a property of
+  the *statistic*, not of where the threshold sits. **Independent corroboration:
+  the reference's own decision stage applied `medfilt1`** — it knew, and smoothed.
+- **This hands the decision-rule gate its OPENING QUESTION** (structural — it must
+  **not** be absorbed into a threshold choice): (a) **smooth C1 across frames**
+  (the reference's `medfilt1`; keeps the golden-mastered formula, but the decision
+  stops being per-frame and the smoothing window needs its **own** out-of-sample
+  provenance, un-fittable to D1/D2/D3); or (b) **use the add-once C1** (bounded,
+  concentrates as `1/√N`, per-frame threshold viable — but it **corrects a
+  reproduced quirk**, diverging from the golden-mastered feature layer, so it needs
+  a **named quarantine flag and its own ledger entry** per reproduce-and-quarantine).
+- **The trap (unchanged):** with 1/√N invalid, the pressure is to *measure* C1 on
+  D2/D3's noise regions — fitting-to-the-fixture. Out-of-sample survives only
+  because the null is derived analytically (done); the fixture is used only to
+  **check** the prediction (doc item 4), never to fit.
+- **Status:** the analytic derivation (the blocking precondition) is **discharged**.
+  The decision-rule instantiation remains gated on (i) the fixture **check** of the
+  prediction — a separate step — and (ii) the per-frame **fork** above. Still no
+  threshold value. Cross-ref VUV7 (same feature).
 
 ### VUV9. Coverage gap: no fixture exercises a rate where reference `ceil` ≠ VoicingGrid `round`
 
