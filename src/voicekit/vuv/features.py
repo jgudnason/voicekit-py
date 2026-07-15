@@ -72,6 +72,57 @@ class FrameFeatures:
         return len(self.nz)
 
 
+def frame_features_at(
+    s: npt.NDArray[np.float64], start: int, frame_len: int, nar: int
+) -> tuple[float, float, float, float, float]:
+    """The five features ``(Nz, Es, C1, alp1, Ep)`` for the frame at ``start``.
+
+    The single per-frame path, shared by `extract_frame_features` (over VoicingGrid
+    starts) and the parity test (over the reference's own window starts) -- so the
+    MATLAB parity exercises the same code the module runs, not a copy of it.
+    """
+    frame = s[start : start + frame_len]
+    # Nz: history-free, defined for every frame. Sign via >= 0 (reproduce),
+    # transitions of the sign sequence summed.
+    nz = float(np.sum(np.abs(np.diff((frame >= 0.0).astype(np.int64)))))
+
+    if start < nar:
+        # No nar-sample covariance history (and no s[start-1] for C1's s0).
+        # Undefined -> routed to the same pre-gate path as silence. Guarding here
+        # is what prevents s[start-1] == s[-1] silently wrapping to the signal
+        # tail and computing a spurious finite C1 (VUV pin).
+        return nz, np.nan, np.nan, np.nan, np.nan
+
+    # One covariance LPC over the pre-frame-history window reproduces v_lpccovar
+    # (predict the frame w[nar:] from the history w[:nar]). dc_offset=True matches
+    # the reference's THREE-output call `[ar,e,dc]=lpccovar(...)`, fitting the AR
+    # about a jointly-fitted DC level: alp1 (ar) and Ep (residual energy) come
+    # from that fit. Es reads signal_energy, which is DC-independent (unchanged).
+    w = s[start - nar : start + frame_len]
+    res = lpc_covar(w, nar, dc_offset=True)
+    sig_e = res.signal_energy
+    assert sig_e is not None  # covariance solver always sets it (commit 1)
+
+    # Reproduce the disabled-eps degeneracies (log10(0) -> -inf, 0/0 -> NaN)
+    # silently; these are the intended reference values, not numerical accidents.
+    with np.errstate(divide="ignore", invalid="ignore"):
+        es = 10.0 * np.log10(sig_e / frame_len)  # eps disabled: 0 -> -inf
+        ep = es - 10.0 * np.log10(res.error / frame_len)
+        # C1: lag-1 with the boundary sample s0 = s[start-1], reaching one sample
+        # before the frame. Reproduced quirk (VUV7): the NUMERATOR boundary term
+        # frame[0]*s0 is broadcast across the N-1 products (MATLAB vector+scalar)
+        # so it enters N-1 times, while the DENOMINATOR carries s0 once (one
+        # element of [s0, frame[:-1]]). That asymmetry is why C1 is unbounded above
+        # (VUV8) -- do NOT collapse it to add-once. Silent frame -> 0/0 = NaN.
+        s0 = s[start - 1]
+        ssq = float(frame @ frame)
+        shifted = np.concatenate(([s0], frame[:-1]))
+        num = float(np.sum(frame[1:] * frame[:-1] + frame[0] * s0))
+        c1 = num / np.sqrt(ssq * float(shifted @ shifted))
+
+    return nz, float(es), float(c1), float(res.a[1]), float(ep)
+
+
 def extract_frame_features(
     signal: Signal, config: VuvFeaturesConfig | None = None
 ) -> FrameFeatures:
@@ -91,49 +142,7 @@ def extract_frame_features(
     alp1: npt.NDArray[np.float64] = np.empty(n, dtype=np.float64)
     ep: npt.NDArray[np.float64] = np.empty(n, dtype=np.float64)
 
-    # Reproduce the disabled-eps degeneracies (log10(0) -> -inf, 0/0 -> NaN)
-    # silently; these are the intended reference values, not numerical accidents.
-    with np.errstate(divide="ignore", invalid="ignore"):
-        for k in range(n):
-            start = k * hop
-            frame = s[start : start + frame_len]
-            # Nz: history-free, defined for every frame. Sign via >= 0 (reproduce),
-            # transitions of the sign sequence summed.
-            nz[k] = float(np.sum(np.abs(np.diff((frame >= 0.0).astype(np.int64)))))
-
-            if start < nar:
-                # No nar-sample covariance history (and no s[start-1] for C1's s0).
-                # Undefined -> routed to the same pre-gate path as silence. Guarding
-                # here is what prevents s[start-1] == s[-1] silently wrapping to the
-                # signal tail and computing a spurious finite C1 (VUV pin).
-                es[k] = c1[k] = alp1[k] = ep[k] = np.nan
-                continue
-
-            # One covariance LPC over the pre-frame-history window reproduces
-            # v_lpccovar (predict the frame w[nar:] from the history w[:nar]).
-            # dc_offset=True matches the reference's THREE-output call
-            # `[ar,e,dc]=lpccovar(...)`, which fits the AR about a jointly-fitted DC
-            # level: alp1 (ar) and Ep (residual energy) come from that DC-included
-            # fit. Es reads signal_energy, which is DC-independent (unchanged).
-            w = s[start - nar : start + frame_len]
-            res = lpc_covar(w, nar, dc_offset=True)
-            sig_e = res.signal_energy
-            assert sig_e is not None  # covariance solver always sets it (commit 1)
-            alp1[k] = res.a[1]
-            es[k] = 10.0 * np.log10(sig_e / frame_len)  # eps disabled: 0 -> -inf
-            ep[k] = es[k] - 10.0 * np.log10(res.error / frame_len)
-
-            # C1: lag-1 with the boundary sample s0 = s[start-1], reaching one
-            # sample before the frame. Reproduced quirk (VUV7): the NUMERATOR
-            # boundary term frame[0]*s0 is broadcast across the N-1 products
-            # (MATLAB vector+scalar) so it enters N-1 times, while the DENOMINATOR
-            # carries s0 once (one element of [s0, frame[:-1]]). That asymmetry is
-            # why C1 is unbounded above (VUV8) -- do NOT collapse it to add-once.
-            # Silent frame -> ssq=0 -> 0/0 = NaN.
-            s0 = s[start - 1]
-            ssq = float(frame @ frame)
-            shifted = np.concatenate(([s0], frame[:-1]))
-            num = float(np.sum(frame[1:] * frame[:-1] + frame[0] * s0))
-            c1[k] = num / np.sqrt(ssq * float(shifted @ shifted))
+    for k in range(n):
+        nz[k], es[k], c1[k], alp1[k], ep[k] = frame_features_at(s, k * hop, frame_len, nar)
 
     return FrameFeatures(nz=nz, es=es, c1=c1, alp1=alp1, ep=ep, frame_centers=centers)

@@ -645,9 +645,23 @@ surfaces each one.
 ## Step 7 (VUV) — forward findings
 
 Findings surfaced while designing the step-7 voicing milestone (see DESIGN.md §9
-item 7). Unlike the five sections above, these are **not** port-vs-reference
-reproduction facts — they are watch-items for an as-yet-unbuilt component,
-recorded so the detector sub-gate starts from them, not from a blank page.
+item 7). Some are watch-items for the still-unbuilt detector (the decision stage);
+others (VUV7 below) are now port-vs-reference reproduction facts, because the
+*features* turned out to be golden-masterable — see the scoping fact next.
+
+**Step 7 is capture-and-match for the features, define-the-target for the
+decision.** The step-7 fork was originally recorded as "define-the-target" (no
+authoritative MATLAB voicing to golden-master), and that is still true of the
+**decision** stage: C's GMM and E's trained centroids made it non-deterministic,
+and no canonical voicing behaviour exists to match. But the **features**
+(`vuvMeasurements`: Nz, Es, C1, alp1, Ep) are a *deterministic* function of the
+signal — no RNG — so they **are** golden-masterable, exactly like steps 1–6. The
+features are therefore captured against a MATLAB oracle
+(`tests/synthetic/*.vuvfeat.npz`, regenerable via `capture_vuv_features.py`) and
+validated bit-exact / machine-ε / BLAS-ε (`test_vuv_features_parity`). This
+re-scoping is what made the parity capture possible at all — a later reader
+wondering why a "define-the-target" milestone carries a golden-master should read
+it as: **features capture-and-match, decision define-the-target.**
 
 ### VUV1. Binary output does not imply a single-stage classifier — the silence pre-gate is a deliberate design choice
 
@@ -834,15 +848,26 @@ floor assertion *is* "C1 separates" — a wrong C1 that still separates passes.
   faithfully (the parity capture matches MATLAB only if we broadcast), **not
   corrected to add-once**. The floor verdict (C1 separates) holds under *either*
   reading; only the unboundedness (and thus VUV8) depends on the broadcast.
-- **Mitigation (its remedy travels with it):** the fixture cannot catch a
-  wrong-but-separating C1, so C1's fidelity needs the **strongest** verification of
-  the five — hand-computed synthetic-known-value tests isolating the `s0` reach,
-  the broadcast, the denominator (`tests/test_vuv_features.py`), **and** the
-  `vuvMeasurements` machine-ε **parity capture (commit 3, REQUIRED)**. **VUV7 stays
-  OPEN until that parity capture lands** — the features are not fully verified
-  without it.
-- **Status:** open (pending the parity capture); C1 gets the most scrutiny, not
-  equal, wherever it is touched.
+- **Mitigation (landed):** C1's fidelity gets the strongest verification of the
+  five — hand-computed synthetic-known-value tests isolating the `s0` reach, the
+  broadcast, the denominator (`tests/test_vuv_features.py`), **and** the
+  `vuvMeasurements` parity capture (`tests/test_vuv_features_parity.py`, oracle
+  `tests/synthetic/*.vuvfeat.npz`).
+- **What the parity capture proved (VUV7 closed):**
+  - **C1's broadcast reading is confirmed BIT-EXACT by the oracle** (0.0 abs error
+    on all four fixtures). The reproduced numerator/denominator `s0` asymmetry is
+    what MATLAB computes; a wrong-but-separating C1 — the hole the floor cannot
+    cover — is now caught by parity.
+  - **The capture caught the `alp1`/`Ep` DC-offset gap the synthetic tests
+    structurally could not.** Commit 2 read `alp1`/`Ep` from plain covariance LPC;
+    the oracle showed them off by ~1.3e-2 / ~5.7e-2, tracing to `vuvMeasurements`'s
+    three-output `[ar,e,dc]=lpccovar` (DC-offset fit). Routing through
+    `dc_offset=True` (commit 3b) brought them to BLAS-ε (≤3.4e-12 / ≤3.8e-8). This
+    is the concrete evidence the capture was **required**, not optional: the
+    synthetic tests never compared `alp1`/`Ep` to the reference, so only parity
+    could find it.
+- **Status:** **CLOSED.** C1 still gets the most scrutiny wherever touched; VUV8
+  (below) remains open and independent.
 
 ### VUV8. BLOCKING: re-derive the C1 noise null for the reference formula before any threshold
 
