@@ -159,6 +159,59 @@ class TestLpcCovar:
         # Additive and backward-compatible: only the covariance path sets it.
         assert lpc_auto(ar_process(TRUE_A, 500), order=4).signal_energy is None
 
+    def test_dc_offset_recovers_ar_coefficients_despite_dc(self) -> None:
+        # RECOVERY (that the DC path computes the RIGHT coefficients, which
+        # invariance alone would not catch -- a zeros-returning solver is
+        # DC-invariant too). A well-conditioned AR system plus a large DC:
+        # dc_offset=True recovers the true coefficients to the same bar as the
+        # noise-driven recovery test (atol 0.02); plain covariance LPC FAILS that
+        # same bar -- visibly pulled off by the DC (dc dev ~0.01, plain dev ~0.13).
+        a_true = np.poly([0.6, -0.5, 0.4, -0.3]).real
+        x = ar_process(a_true, 8000) + 500.0
+        np.testing.assert_allclose(lpc_covar(x, 4, dc_offset=True).a, a_true, atol=0.02)
+        assert np.max(np.abs(lpc_covar(x, 4).a - a_true)) > 0.02  # plain fails the same bar
+
+    def test_dc_offset_makes_ar_invariant_to_added_constant(self) -> None:
+        # INVARIANCE (that the DC path ignores a DC level), the complementary
+        # property recovery does not isolate: the DC-offset AR is unchanged by an
+        # added constant, exactly (BLAS-eps).
+        x = ar_process(TRUE_A, 5000)
+        np.testing.assert_allclose(
+            lpc_covar(x, 4, dc_offset=True).a, lpc_covar(x + 100.0, 4, dc_offset=True).a, atol=1e-9
+        )
+
+    def test_dc_offset_default_is_bit_identical(self) -> None:
+        # Additive and default-off: the augmentation is skipped and the result is
+        # bit-for-bit what it was before dc_offset existed.
+        x = ar_process(TRUE_A, 500)
+        r0 = lpc_covar(x, 4)
+        rf = lpc_covar(x, 4, dc_offset=False)
+        np.testing.assert_array_equal(r0.a, rf.a)
+        assert r0.error == rf.error
+        assert r0.signal_energy == rf.signal_energy
+
+    def test_signal_energy_invariant_under_dc_offset(self) -> None:
+        # signal_energy is the window energy (v_lpccovar e(:,2)); the DC option
+        # changes ar/error, never the signal energy.
+        x = ar_process(TRUE_A, 500) + 3.0
+        assert lpc_covar(x, 4, dc_offset=True).signal_energy == lpc_covar(x, 4).signal_energy
+
+    def test_dc_offset_ar_invariant_to_dc_column_position(self) -> None:
+        # We append the ones column and slice coef[:order]; the reference prepends
+        # and slices aa(2:p+1). Least-squares is invariant to design-column order,
+        # so the AR coefficients agree -- a claim between our formulation and the
+        # reference's that a later slicing change would silently break.
+        order = 4
+        x = ar_process(TRUE_A, 500) + 2.0
+        ours = lpc_covar(x, order, dc_offset=True).a  # ones appended
+        past = np.column_stack([x[order - k : len(x) - k] for k in range(1, order + 1)])
+        target = x[order:]
+        prepended = np.column_stack([np.ones(len(target)), past])  # ones prepended
+        aa, *_ = np.linalg.lstsq(prepended, target, rcond=None)  # reference solves dm\sc
+        ref_ar = np.concatenate(([1.0], -aa[1:]))  # AR = [1, -aa(2:p+1)]
+        # Exact in infinite precision; the tiny residual is column-order BLAS rounding.
+        np.testing.assert_allclose(ours, ref_ar, atol=1e-10)
+
     def test_rejects_short_frame(self) -> None:
         with pytest.raises(ValueError, match="too short"):
             lpc_covar(np.zeros(8), order=4)

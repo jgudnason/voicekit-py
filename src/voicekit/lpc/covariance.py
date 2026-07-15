@@ -26,6 +26,7 @@ def lpc_covar(
     x: npt.NDArray[np.float64],
     order: int,
     weights: npt.NDArray[np.float64] | None = None,
+    dc_offset: bool = False,
 ) -> LpcResult:
     """Covariance-method LPC, minimizing weighted squared prediction error.
 
@@ -35,6 +36,17 @@ def lpc_covar(
     aligned with ``x``; entries before ``x[order]`` are unused. Weighting
     the error by ``weights[n]`` lets callers emphasize regions such as the
     glottal closed phase. Default is uniform (plain covariance method).
+
+    ``dc_offset`` reproduces VOICEBOX ``v_lpccovar``'s three-output form
+    (``[ar,e,dc]``): a constant regressor is added to the design so the AR
+    coefficients are fitted about a jointly-fitted DC level rather than about
+    zero (``s(n)-DC`` instead of ``s(n)``). ``a`` and ``error`` are then the AR
+    coefficients and residual energy of that DC-included fit; ``signal_energy``
+    is unchanged (the window energy is DC-independent). The fitted DC itself is
+    not returned — no caller needs it (the reference's ``vuvMeasurements``
+    requests it only to trigger the modification, then discards it). Default
+    off: the design is not augmented and the result is bit-identical to the
+    plain covariance method.
 
     Unlike `lpc_auto`, the resulting filter is not guaranteed stable —
     the classic trade-off of the covariance method.
@@ -60,13 +72,20 @@ def lpc_covar(
     past = np.column_stack([x[order - k : len(x) - k] for k in range(1, order + 1)])
     target = x[order:]
 
+    # DC-offset (v_lpccovar 3-output): append a constant regressor so a DC level
+    # is fitted jointly with the AR lags. Appended vs the reference's prepended
+    # column is least-squares-invariant to column order, so the AR coefficients
+    # agree (pinned by test); appending gives clean coef[:order] slicing.
+    design = np.column_stack([past, np.ones(len(target))]) if dc_offset else past
+
     # Solve the weighted least-squares problem via sqrt-weighted lstsq
     # rather than forming normal equations (better conditioning).
     sw = np.sqrt(w)
-    coef, *_ = np.linalg.lstsq(sw[:, None] * past, -sw * target, rcond=None)
+    coef_full, *_ = np.linalg.lstsq(sw[:, None] * design, -sw * target, rcond=None)
+    coef = coef_full[:order]  # AR lags; drops the DC coefficient when dc_offset
 
     a = np.concatenate(([1.0], coef))
-    residual = target + past @ coef
+    residual = target + design @ coef_full
     error = float(w @ (residual * residual))
     # Signal energy over the same target samples the residual is measured on --
     # unweighted (v_lpccovar's e(:,2)), so a caller reads both energies from one

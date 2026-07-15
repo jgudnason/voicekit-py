@@ -425,6 +425,23 @@ path, to make going and finding it deliberate rather than incidental.
   accommodates as a second `(mask, subset, value)` call), not a sign clamp inside
   `flow_statistics`. Filed for when VUV lands.
 
+### C8. Covariance LPC: short-frame order reduction (`pp = min(p, nc-d0)`)
+
+- **Where:** `voicekit.lpc.lpc_covar` vs VOICEBOX `v_lpccovar` (line 109,
+  `pp=min(p,nc-d0)`), reached via the VUV features' covariance-LPC call.
+- **The divergence:** for a frame shorter than the analysis order (`nc <= p`, or
+  `nc <= p+1` with `dc_offset`), `v_lpccovar` **silently reduces the order** to fit
+  what the frame supports; `lpc_covar` instead **raises** (`too short for order`).
+  We keep the raise — a silent order reduction is a worse failure mode than an
+  explicit error for a library primitive.
+- **Why the fixtures miss it:** every VUV frame is 512 samples (32 ms at 16 kHz)
+  against order 16, so `nc >> p` always and the reduction never triggers. No
+  fixture exercises a frame short enough to reach it.
+- **Status:** unexercised divergence, filed. A step-8 weighted-LP GIF method that
+  frames shorter (e.g. a narrow closed phase) could hit `nc <= p` and would need
+  this reconciled — reduce order to match the reference, or raise deliberately
+  with a documented divergence. Find this entry before framing short.
+
 ---
 
 ## Fixture limitations — captures that don't reproduce end-to-end
