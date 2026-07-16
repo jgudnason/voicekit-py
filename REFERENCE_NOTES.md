@@ -663,44 +663,90 @@ re-scoping is what made the parity capture possible at all — a later reader
 wondering why a "define-the-target" milestone carries a golden-master should read
 it as: **features capture-and-match, decision define-the-target.**
 
-### VUV1. Binary output does not imply a single-stage classifier — the silence pre-gate is a deliberate design choice
+### VUV1. The silence pre-gate: design ratified — a finiteness predicate plus a floor guard, never a speech/silence detector
 
 The step-7 output label is binary (voiced / non-voiced), but that is the *output*
-domain, not the classifier's internal structure. The pre-gate has two jobs, of
-different standing. The **principled** job: in true silence or near-floor noise
-the periodicity features (`C1`, `Ep`) are computed on noise and cannot
-distinguish "unvoiced speech" from "no speech at all," so the detector plausibly
-needs an internal energy/silence pre-gate feeding the voiced/unvoiced decision.
-The **remedial** job (framing corrected 2026-07-16 with VUV10 — this *replaces*
-the earlier reading that the silent-frame features are "honestly undefined," a
-reading now established wrong): the degenerate values the pre-gate absorbs
-(`Es = -inf`, `Ep`/`C1` `NaN`) exist because the MATLAB deliberately zeroed
-guards the paper mandates (`eps=0; %1e-50` against the paper's ε = 10⁻⁵ in
-Eq. (2) and 10⁻⁶ in Eq. (4)); the paper's own silent frames get a finite floor.
-The pre-gate compensates for a dropped guard; it does not consume a principled
-reference degeneracy.
+domain, not the classifier's internal structure. The pre-gate's design was
+**ratified at the decision-rule gate opening (2026-07-16)** as three jobs of
+different standing (this rewrite replaces the earlier open-question form of the
+entry; the build, and any value, remain at the classifier sub-gate):
 
-- **Watch:** an energy-based pre-gate in front of an energy-driven main decision
-  is an energy classifier in disguise — it re-enters the *floor-fixture trap* (a
-  detector that passes the clean S/V/U/V/S fixture on energy alone while failing
-  the hard cases the detector exists for) through the front door. The silence
-  stage must be designed deliberately at the sub-gate, against a discriminating
-  fixture, not bolted on.
-- **Threshold provenance (established for periodicity only; open for the pre-gate).**
-  The decision-rule sub-gate settled the *periodicity* threshold's provenance: the
-  analytic noise null (normalized autocorrelation std ≈ 1/√N at the locked grid's
-  frame length N), with a dimensionless significance knob in `VuvConfig` and the
-  concrete number derived at runtime from knob + N — structurally out-of-sample
-  from D1/D2/D3, derived from the generic null and **never** measured off the
-  fixture's noise regions. **That provenance covers the periodicity separator
-  only.** If the rule carries a silence/energy pre-gate, its threshold requires
-  its **own** separately-named, out-of-sample calibration source, re-confirmed
-  when it is designed. The acute reason: an energy pre-gate is an *energy*
-  threshold, and energy is the very feature **D1 was constructed to defeat** — so
-  calibrating it by reference to D1/D2/D3 is the floor-fixture-trap circularity in
-  its most direct form. The pre-gate must not acquire a threshold later without
-  its provenance re-confirmed out-of-sample. Flag, not design.
-- **Status:** open design finding for the detector sub-gate.
+- **J1 — remedial: a finiteness predicate, no threshold.** A zero-energy frame
+  yields `Es = -inf`, `Ep = NaN`, `C1 = NaN` — dropped-guard artifacts, not
+  principled degeneracies (the MATLAB zeroed guards the paper mandates: `eps=0;
+  %1e-50` against ε = 10⁻⁵ in Eq. (2) and 10⁻⁶ in Eq. (4); the paper's silent
+  frames get a finite floor — VUV10). **`r1` inherits the 0/0 `NaN` too**:
+  boundedness does not fix zero energy. J1 needs no calibration at all — it is
+  the defined NaN/`-inf` → non-voiced mapping the decision rule must have
+  anyway (reachable in practice on *digital* silence: zero-padded or edited
+  files). The history-less first frame is already absorbed by the committed
+  `start < nar` guard, which is our own principled routing, not the reference's
+  dropped one.
+- **J2 — principled, and not fully dischargeable by a floor guard.** Near-floor
+  *coloured* noise reads **high** on correlation statistics — the paper's own
+  Table I silence class measures C1 = 0.649, above its unvoiced class (0.007),
+  and D3's aspiration is the in-set analogue (`r1` = +0.271 with zero
+  periodicity). So the pre-gate's substantive job is removing frames that would
+  otherwise read *voiced*, not "boring" frames. But a floor guard low enough to
+  be legitimate (below) cannot catch audible coloured room tone at
+  speech-adjacent levels, and no fixed `r1` threshold clears arbitrary colour
+  (ρ → 1 for rumble). **The recorded resolution is an operating-envelope
+  statement — an architectural limit, stated not hidden:** the fixed threshold
+  is calibrated for bounded noise colour, the bound stated, validated at
+  Track B, and scored stratified. The **adaptive gate is the named escape
+  hatch** if Track B shows the envelope too narrow, with its hazards
+  pre-recorded: it breaks per-frame determinism (same frame, different label in
+  different files), is undefined on all-silence/all-speech inputs, and absorbs
+  the envelope gap instead of stating it (training on the input through the
+  back door).
+- **J3 — input conditioning (DC/rumble), split out.** J2's physics at 0 Hz;
+  paper-mandated fix is *filtering, not gating*; collides with the grid's
+  input-neutrality clause. Own entry and own gate: **VUV12**.
+
+**The floor-guard constraint (resolves the old "two-hats" watch item).** The
+pre-gate is legitimate **only as a recording-chain floor guard** — a level so
+low it can never arbitrate speech content — never a speech/silence detector.
+The energy-classifier-in-disguise hazard is real but localized: it lives
+entirely in *where the level sits* (threshold creep toward "quiet speech"
+levels would eat D1's low-SNR decay frames before `r1` ever sees them — an
+energy classifier exactly where D1 probes). A floor guard never decides V vs U
+(both members of every energy-matched pair pass it identically), so it does not
+touch VUV3's sufficiency-elimination. **Required test when the pre-gate lands
+(the anti-creep guard): the pre-gate must never fire on any D1 frame** — D1's
+floor is a real noise floor, well above digital zero.
+
+**Threshold provenance (ratified weighting; no value set).** The `r1`
+provenance (the textbook `1/√N` null for the bounded Eq. (3) statistic, knob in
+`VuvConfig`, never measured off the fixtures) gives the pre-gate nothing; the
+pre-gate's own source, per the ratification: **(ii) a physically-motivated
+absolute level** (format quantization/dither floor, or a stated dBFS floor) —
+out-of-sample by construction, referencing the format and no fixture or corpus
+— carries the weight. (iii) A dedicated synthetic calibration construction is
+the **check** in derive→predict→check, never the provenance source. (iv)
+Adaptive: rejected-for-now, reasons above. (i) The paper has nothing to
+transfer — silence there is a *trained centroid* in a 5-D Gaussian, not a
+threshold; its only absolute constant, ε = 10⁻⁵ against ±2048 samples
+(RMS ≈ 0.003 counts, ~−116 dBFS, below 12-bit quantization noise), is itself a
+numerical floor guard — corroborating the floor-guard reading of what an
+absolute level can legitimately be. Calibrating an energy level by reference to
+D1/D2/D3 remains the floor-fixture-trap circularity in its most direct form
+(energy is the feature D1 was constructed to defeat) and stays forbidden.
+
+**Observability is required.** A pre-gated frame is `voiced=False` (coherent
+with the binary charter; the domain stays wideable), but the firing must be
+observable, for three reasons: (a) Track A/B error analysis must distinguish
+"the pre-gate ate it" from "`r1` rejected it," or the pre-gate can silently
+consume discriminating regions while aggregate scores stay green (VUV5's
+stratification argument, same shape); (b) the anti-creep test above is only
+writable if firing is observable — transient ≠ untestable, per the architecture
+gate's mask precedent; (c) the observable channel is the seam a later S/U/V
+widening plugs into, keeping the widening additive. Field-vs-diagnostic form is
+a build-time detail.
+
+- **Status:** design ratified 2026-07-16 (jobs, floor-guard constraint,
+  provenance weighting, anti-creep test, observability). Build and value at the
+  classifier sub-gate. Cross-ref VUV11 (the D2 limit the same gate ratified),
+  VUV12 (J3).
 
 ### VUV2. `VoiceFeatures.vuv` renamed to `frame_len_ok` — namespace hazard resolved
 
@@ -1014,3 +1060,103 @@ unknown:
   the feature-layer gate; no reproduced value changes. Paper-vs-MATLAB
   divergences are candidates only insofar as a *decision-layer* design chooses
   the paper's form (as `r1` does for Eq. (3)); the feature layer never diverges.
+
+### VUV11. D2 is a bounded limit of the fixed-threshold architecture (C′) — "the other four" closed by set-level straddling, not per-pair weakness
+
+Ratified at the decision-rule gate opening (2026-07-16). The question "what
+carries D2?" was answered by measurement (dense slide, stride 8, n=237/region,
+locked grid N=512 — the same protocol as the C1 re-measurement), and the answer
+reframed the options.
+
+- **Per-pair, the other four are NOT dead on D2** — the expectation "probably
+  no" was wrong: on D2's matched pair, **`Ep` separates at 10.7 σ** (V +3.20 ±
+  0.18 vs N +7.13 ± 0.19) and **`alp1` at 7.0 σ** (V −0.079 ± 0.073 vs N +0.858
+  ± 0.061); `Nz` 0.4 σ (the ledgered ~3% leak), `Es` 0.0 σ (matched by
+  construction). The separating cue is the added low-frequency source energy
+  changing spectral balance at exactly matched total energy — **the voice bar,
+  which is genuine acoustics** (a documented phonetic cue for voiced
+  fricatives), not a pure construction artifact.
+- **What closes the "other four carry it" route is set-level straddling:**
+  across D2+D3, every feature's *voiced class spans its non-voiced values*, so
+  no fixed single-feature threshold produces the label —
+  `Ep`: voiced spans +3.2 … +54.2 with non-voiced (+5.3, +7.1) *inside*, and
+  the direction **flips between fixtures** (voiced is low-`Ep` on D2, high-`Ep`
+  on D3); `alp1`: voiced spans −5.33 … −0.08 with D3's aspiration (−1.30) *more
+  negative than* D2's voiced fricative; `Nz`: voiced spans 28.7 … 265.9 with
+  non-voiced (209.9, 273.2) inside; `r1` likewise (next bullet). The fixtures
+  eliminate sufficiency not by nulling features per-pair but by making the
+  voiced class straddle the non-voiced values. Closed by measurement, not
+  presumption.
+- **The closing arithmetic for the chosen architecture:** any `r1` threshold
+  that clears D3's aspiration (+0.271) necessarily rejects D2's voiced
+  fricative (−0.055) — D2's voiced member sits *below a non-voiced region of
+  the same set* on the decision statistic. **Fixed-threshold `r1` therefore
+  systematically labels D2's voiced frication non-voiced.** For the correlation
+  family generally, D2's gap-to-noise is construction-fixed and the per-frame
+  spread is `1/√N` estimation noise: 1.0 σ → 3 σ needs ~9× the frame length
+  (~290 ms) — resolution death. The pitch-lag route does not rescue D2 either
+  (+0.068 vs −0.020, measured).
+- **The 1976 insight:** the four features are individually incoherent across
+  conditions yet **jointly separable** (Mahalanobis distance between class
+  means under pooled covariance: 28.4 on D2's pair, 14.1 on D3's) — our own
+  measurement reproduces, with the 1976 feature set, the design pressure that
+  made Atal & Rabiner **train a full-covariance Gaussian rather than
+  threshold** (VUV10, Table I). We rejected their remedy for named
+  licensing/generalization reasons; this is what the remedy was for.
+- **C′, precisely bounded:** D2 is a limit **of the chosen architecture** (a
+  fixed threshold on a single periodicity statistic), *not* of per-frame
+  detection in general — the per-pair separations above prove the information
+  is present. Known, stated, VFR-stratified, inside VUV3's ratified scope (the
+  set eliminates sufficiency; it never promised the hard cases are solvable).
+- **Falsifier (where the evidence would come from):** Track B corpus
+  evaluation — real voiced fricatives at VFR ≤ 0 dB reliably detected against
+  EGG ground truth would show the limit was architectural complacency, not a
+  bound. The realism gap cuts **both ways** (VUV4): D2's additive-independence
+  construction likely *overstates* the waveform voice-bar cue (real weak
+  voicing = weak voice bar; `alp1`/`Ep`'s 7–10 σ may not survive realism) and
+  *understates* envelope cues (real turbulence is pitch-synchronously
+  modulated — an envelope-periodicity feature would have a signature D2-as-
+  built lacks entirely; VUV4's hardening knob would add it). Both "spectral
+  shape carries real D2" and "nothing carries real D2" are fixture-external
+  empirical claims.
+- **Three forward requirements (the guards that keep C′ a stated limit, not
+  complacency):** (1) the scorer **must stratify by VFR** — D2's aggregate
+  score would hide the limit; this is what the fixture's metadata channel was
+  shipped for (VUV5); (2) when the classifier lands, the D2 limit gets its own
+  ledger entry — a documented property, not a discovered surprise; (3) any
+  future joint/spectral-shape route needs a **named out-of-sample
+  justification** (the voice bar is documented in the phonetics literature,
+  independent of D2) plus **corpus-driven — never fixture-driven — structure**.
+- **Status:** framing ratified (C′). The three requirements bind the scorer,
+  the classifier build, and any future feature-set expansion. Cross-ref VUV1
+  (same gate), VUV3/VUV4/VUV5 (scope, realism, stratification), VUV10 (the
+  trained-Gaussian context), docs/vuv_c1_decision.md (r1 and the D2 numbers it
+  already records).
+
+### VUV12. Input conditioning for `r1` (DC/rumble) — J2's physics at 0 Hz; filtering not gating; own gate
+
+Surfaced at the decision-rule gate opening (2026-07-16); deliberately **not**
+decided there. The paper high-passes at 200 Hz (its Eq. (1) two-pole/two-zero
+filter) **before all five features**; the MATLAB dropped that preprocessing and
+compensated only `alp1`/`Ep` via the DC-offset covariance LPC (VUV10) — so
+`C1`/`r1` read a **raw** frame. A DC offset or sub-speech-band rumble drives
+`r1` → 1: DC is the limit case of low-pass colour, making this the silence
+pre-gate's J2 problem at 0 Hz (VUV1). Distinctives:
+
+- **The fix is paper-mandated and is *filtering*, not gating** — a front-end
+  high-pass (or per-frame mean removal for DC alone), not a threshold. It
+  therefore has clean provenance (the paper's own front end) and none of the
+  floor-guard calibration questions.
+- **But it collides with the grid's ratified input-neutrality clause** (VUV6:
+  "applied at the signal's own fs with no internal resample" was the ratified
+  form — the frame centres are identical whatever signal is framed). An
+  *internal* filter raises the analogous neutrality question: the detector
+  would no longer see the signal the caller passed. The structural question for
+  its own gate: **does input conditioning live inside the detector or upstream
+  in the pipeline?** (With a side question if internal: does mean-subtraction
+  alone suffice for the DC case, and what does it do to `r1`'s null — one lost
+  degree of freedom, still ~`1/√N`.)
+- **Status:** open structural question, deferred to its own gate. Must be
+  settled before the detector is exposed to real (non-fixture) recordings —
+  every committed fixture is zero-mean by construction, so no current test
+  exercises it (kin to the coverage-gap entries above).
