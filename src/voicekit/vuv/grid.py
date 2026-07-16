@@ -1,7 +1,9 @@
 """The voiced/unvoiced analysis frame grid (`VoicingGrid`).
 
 A fixed-frame time-partition for the voicing detector: 32 ms frames every 10 ms
-(the Atal-Rabiner voicing-analysis standard). Durations are held in milliseconds
+(the reference ``vuvMeasurements`` defaults; the Atal-Rabiner paper itself uses
+10 ms non-overlapping blocks -- see REFERENCE_NOTES VUV6/VUV10 for the corrected
+attribution). Durations are held in milliseconds
 and turned into sample counts at the signal's own sampling rate -- no internal
 resampling -- which makes the grid **input-neutral**: the frame-centre samples are
 identical whatever signal is framed (raw, residual, or flow), so locking the grid
@@ -33,8 +35,8 @@ class VoicingGrid:
     given ``fs`` (``round(dur * fs)``), so one grid definition serves every rate.
     """
 
-    frame_dur_s: float = 0.032  # frame length (s) -- Atal-Rabiner wl
-    hop_dur_s: float = 0.010  # hop / frame step (s) -- Atal-Rabiner inc
+    frame_dur_s: float = 0.032  # frame length (s) -- reference vuvMeasurements wl
+    hop_dur_s: float = 0.010  # hop / frame step (s) -- reference vuvMeasurements inc
 
     def frame_len(self, fs: float) -> int:
         """Frame length in samples at ``fs``."""

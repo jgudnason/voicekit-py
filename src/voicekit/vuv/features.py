@@ -14,11 +14,16 @@ residual energy).
 
 Reference quirks are reproduced exactly and quarantined behind the (deferred)
 VUV1 pre-gate -- see REFERENCE_NOTES "Step 7 (VUV)":
-  - the reference's ``eps`` guard is disabled (``eps=0``), so a zero-energy frame
-    yields ``Es = -inf`` and ``Ep = NaN``, and a silent frame yields ``C1 = NaN``;
+  - a zero-energy frame yields ``Es = -inf`` and ``Ep = NaN``, and a silent
+    frame yields ``C1 = NaN`` -- a dropped-guard artifact, not a principled
+    degeneracy: the reference zeroed (``eps=0``) the guards the paper mandates
+    (eps=1e-5 in Eq. (2), 1e-6 in Eq. (4)), so the paper's silent frames get a
+    finite floor where ours reproduce the MATLAB's ``-inf``/``NaN``
+    (VUV1/VUV10);
   - ``C1``'s boundary term reaches one sample *before* the frame and is broadcast
     across the N-1 products (it enters N-1 times), making ``C1`` unbounded above
-    -- reproduced, not corrected (VUV7/VUV8);
+    -- reproduced, not corrected (VUV7/VUV8; the paper's Eq. (3) enters it once,
+    see VUV10 and docs/vuv_c1_decision.md);
   - ``Nz`` takes the sign as ``>= 0`` (zero counts non-negative);
   - the history-less first frame (start 0) is undefined and routed to the same
     pre-gate path as silence -- never computed from ``s[-1]`` (the signal tail).
@@ -42,7 +47,8 @@ class VuvFeaturesConfig:
 
     Distinct from the deferred *threshold* config (VUV1's ``VuvConfig``): this
     carries only the framing (`VoicingGrid`) and the covariance-LPC order
-    (``nar``, the Atal-Rabiner default 16).
+    (``nar``; 16 is the reference caller's convention -- the paper itself says
+    p = 12 "typically"; see REFERENCE_NOTES VUV10).
     """
 
     grid: VoicingGrid = field(default_factory=VoicingGrid)
@@ -54,10 +60,11 @@ class FrameFeatures:
     """Per-frame Atal-Rabiner feature matrix; one row per `VoicingGrid` frame.
 
     **Not a voicing track** -- no labels. Degenerate frames (silence; the
-    history-less first frame) carry the reference's reproduced ``-inf``/``NaN``,
-    quarantined behind the deferred VUV1 pre-gate: a consumer must check
-    ``np.isnan``/``np.isinf`` before use. ``frame_centers`` are 0-based sample
-    positions from `VoicingGrid.frame_centers`.
+    history-less first frame) carry the reference's reproduced ``-inf``/``NaN``
+    (for silence, a dropped-guard artifact -- see the module docstring and
+    VUV1/VUV10), quarantined behind the deferred VUV1 pre-gate: a consumer must
+    check ``np.isnan``/``np.isinf`` before use. ``frame_centers`` are 0-based
+    sample positions from `VoicingGrid.frame_centers`.
     """
 
     nz: npt.NDArray[np.float64]

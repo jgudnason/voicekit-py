@@ -666,10 +666,19 @@ it as: **features capture-and-match, decision define-the-target.**
 ### VUV1. Binary output does not imply a single-stage classifier — the silence pre-gate is a deliberate design choice
 
 The step-7 output label is binary (voiced / non-voiced), but that is the *output*
-domain, not the classifier's internal structure. In true silence or near-floor
-noise the periodicity features (`C1`, `Ep`) are computed on noise and cannot
+domain, not the classifier's internal structure. The pre-gate has two jobs, of
+different standing. The **principled** job: in true silence or near-floor noise
+the periodicity features (`C1`, `Ep`) are computed on noise and cannot
 distinguish "unvoiced speech" from "no speech at all," so the detector plausibly
 needs an internal energy/silence pre-gate feeding the voiced/unvoiced decision.
+The **remedial** job (framing corrected 2026-07-16 with VUV10 — this *replaces*
+the earlier reading that the silent-frame features are "honestly undefined," a
+reading now established wrong): the degenerate values the pre-gate absorbs
+(`Es = -inf`, `Ep`/`C1` `NaN`) exist because the MATLAB deliberately zeroed
+guards the paper mandates (`eps=0; %1e-50` against the paper's ε = 10⁻⁵ in
+Eq. (2) and 10⁻⁶ in Eq. (4)); the paper's own silent frames get a finite floor.
+The pre-gate compensates for a dropped guard; it does not consume a principled
+reference degeneracy.
 
 - **Watch:** an energy-based pre-gate in front of an energy-driven main decision
   is an energy classifier in disguise — it re-enters the *floor-fixture trap* (a
@@ -797,10 +806,19 @@ tail.
 
 ### VUV6. VUV frame grid locked: 32 ms / 10 ms, its own config, independent of IAIF
 
-The voicing frame grid is locked at **32 ms frames / 10 ms hop** (the Atal-Rabiner
-voicing-analysis standard), in `VoicingGrid` (`src/voicekit/vuv/grid.py`) — its own
+The voicing frame grid is locked at **32 ms frames / 10 ms hop** (the reference
+`vuvMeasurements` defaults), in `VoicingGrid` (`src/voicekit/vuv/grid.py`) — its own
 config, **not** derived from `IaifConfig`. @16 kHz: `frame_len` 512, `hop` 160,
 guard band **W = 512/2 + 160/2 = 336** samples; @8 kHz: 256 / 80 / 168.
+
+- **Attribution corrected (2026-07-16, with VUV10):** this entry originally called
+  32/10 "the Atal-Rabiner voicing-analysis standard." The paper (read in full for
+  VUV10) uses **10 ms non-overlapping blocks** (N=100 @ 10 kHz; "segments as short
+  as 10 ms" is the abstract's selling point). The 10 ms *hop* matches the paper's
+  block rate; the **32 ms window is the MATLAB's own convention**, 3.2× the
+  paper's, and is not in the paper. The grid stays locked at 32/10 — its rationale
+  (sized for voicing, independent of IAIF, hop settled by the LPC-source question
+  below) is unaffected; only the provenance claim was wrong.
 
 - **Why its own config (the hop was the live decision).** `VoicingGrid` and
   `IaifConfig` share a 32 ms frame length by **coincidence**; they differ on hop
@@ -843,11 +861,16 @@ floor assertion *is* "C1 separates" — a wrong C1 that still separates passes.
   `[s0; s(1:end-1)]` is an `N×1` vector with `s0` as **one element**, so its `s0`
   enters **once**. That numerator-broadcast/denominator-once asymmetry breaks
   Cauchy-Schwarz and is exactly why C1 is **unbounded above** (>1; 1.448 measured
-  on D3). The author almost certainly *intended* add-once (a proper normalized
-  cross-correlation, bounded [-1,1]), but the code broadcasts — reproduced
-  faithfully (the parity capture matches MATLAB only if we broadcast), **not
-  corrected to add-once**. The floor verdict (C1 separates) holds under *either*
-  reading; only the unboundedness (and thus VUV8) depends on the broadcast.
+  on D3). The intent is no longer an inference (2026-07-16, VUV10): **Atal &
+  Rabiner (1976) Eq. (3) — which the MATLAB's header cites as its definition —
+  adds the boundary term once**; the MATLAB's denominator implements Eq. (3)
+  term-for-term and its numerator differs by a single misplaced parenthesis
+  (`sum(v + s(1)*s0)` for `sum(v) + s(1)*s0`). A genuine formula bug, established
+  from the primary source (see [docs/vuv_c1_decision.md](docs/vuv_c1_decision.md)
+  §Q2). The code broadcasts — reproduced faithfully (the parity capture matches
+  MATLAB only if we broadcast), **not corrected to add-once**. The floor verdict
+  (C1 separates) holds under *either* reading; only the unboundedness (and thus
+  VUV8) depends on the broadcast.
 - **Mitigation (landed):** C1's fidelity gets the strongest verification of the
   five — hand-computed synthetic-known-value tests isolating the `s0` reach, the
   broadcast, the denominator (`tests/test_vuv_features.py`), **and** the
@@ -908,10 +931,27 @@ full derivation and predictions in [docs/vuv8_c1_null.md](docs/vuv8_c1_null.md).
   D2/D3's noise regions — fitting-to-the-fixture. Out-of-sample survives only
   because the null is derived analytically (done); the fixture is used only to
   **check** the prediction (doc item 4), never to fit.
-- **Status:** the analytic derivation (the blocking precondition) is **discharged**.
-  The decision-rule instantiation remains gated on (i) the fixture **check** of the
-  prediction — a separate step — and (ii) the per-frame **fork** above. Still no
-  threshold value. Cross-ref VUV7 (same feature).
+- **Status (updated 2026-07-16): derivation discharged; check done; fork resolved.**
+  (i) The fixture **check** of the doc's item-4 prediction is done: re-measured on
+  D2/D3 (dense slide over the region interiors, n=237/region, N=512),
+  `E[C1] ≈ 2ρ` confirmed on all three region pairs — D3 aspiration +0.588 vs
+  2×0.271, D3 breathy +1.305 vs 2×0.625, D2 frication −0.377 vs 2×(−0.159),
+  including the predicted cross-fixture sign flip — with std O(1) (0.96–1.10),
+  non-concentrating. (ii) The per-frame **fork** is resolved and recorded in
+  **[docs/vuv_c1_decision.md](docs/vuv_c1_decision.md)** — the decision record
+  that pairs with the derivation ([docs/vuv8_c1_null.md](docs/vuv8_c1_null.md);
+  math there, reasoning there-not-here): broadcast `C1` stays the golden-mastered
+  feature-layer output, unchanged, no flag; the **decision layer** (define-the-
+  target, no reference decision stage to depart from) gets its **own named
+  statistic `r1`** = Atal & Rabiner (1976) Eq. (3) — established by VUV10 as the
+  paper's formula, not a "corrected C1" — so neither fork option (a) smoothing
+  nor (b) flag-quarantined correction is taken; the fork's premise (that the
+  decision must consume the reproduced feature or a corrected version of it)
+  dissolved on the primary-source reading. Option (a) is additionally foreclosed
+  by measurement: the required smoothing window (330–750 ms at z=2–3) is 16–36×
+  the guard band W and longer than D1's entire 370 ms structure. Still no
+  threshold value — that, and `r1`'s implementation, belong to the decision-rule
+  gate. Cross-ref VUV7 (same feature), VUV10 (paper fidelity).
 
 ### VUV9. Coverage gap: no fixture exercises a rate where reference `ceil` ≠ VoicingGrid `round`
 
@@ -922,3 +962,55 @@ where coincident. But no fixture exercises a rate where `ceil ≠ round`, so tha
 divergence is **tracked, not assumed**. If such a rate is ever added, the feature
 framing (`VoicingGrid.round`) and the reference (`ceil`) will diverge by a sample
 and must be reconciled. Coverage-gap-style item, VUV-local. Status: open gap.
+
+### VUV10. Paper fidelity characterized: the reference is a loose implementation of Atal & Rabiner 1976
+
+The primary source (Atal & Rabiner, *IEEE Trans. ASSP-24*(3), 1976, pp. 201–212;
+full reprint from Rabiner's UCSB archive) was read in full on 2026-07-16 to
+establish what the reference `vuvMeasurements.m` — whose header cites the paper
+as the definition of its five features — was *trying* to compute. Finding: **the
+MATLAB is a loose implementation of the paper generally, with C1's broadcast the
+only outright formula error.** Our golden master proves parity with the MATLAB;
+it is silent on fidelity to the paper. That gap is now characterized rather than
+unknown:
+
+- **C1 (the one formula bug):** the paper's Eq. (3) enters the boundary term
+  `s(1)·s(0)` once (and states C1 "by definition, varies between −1 and +1");
+  the MATLAB numerator broadcasts it N−1 times via one misplaced parenthesis
+  while its denominator implements Eq. (3) term-for-term. See VUV7 (reproduced),
+  VUV8 (consequences), [docs/vuv_c1_decision.md](docs/vuv_c1_decision.md)
+  (decision).
+- **Guards dropped:** the paper mandates ε = 10⁻⁵ inside `Es` (Eq. (2), against
+  ±2048 12-bit samples) and 10⁻⁶ inside `Ep` (Eq. (4)); the MATLAB deliberately
+  zeroes them (`eps=0; %1e-50`, its own "avoid taking logarithm of zeros"
+  comment left standing). The reproduced `-inf`/`NaN` silent-frame values are
+  therefore a *departure from the paper*, not a principled reference degeneracy
+  — restated at VUV1 (the pre-gate compensates for a dropped guard).
+- **Preprocessing disabled, DC handled differently:** the paper's front end is
+  4 kHz LPF → 10 kHz/12-bit → its Eq. (1) 200 Hz two-pole/two-zero high-pass
+  (a=130·2π, b=200·2π) — DC/hum removal *before* analysis, so its LPC has no DC
+  term. The MATLAB **transcribed exactly that Eq. (1) filter (lines 61–63) and
+  commented it out**, and instead calls the three-output `[ar,e,dc]=lpccovar`
+  (DC-offset fit). So the reference's `dc_offset` LPC is evidently a
+  *substitute for the removed preprocessing*, not an arbitrary quirk — the
+  finding that explains why routing `alp1`/`Ep` through `dc_offset=True`
+  (commit 95cb4dd) was required for parity.
+- **Order changed:** the paper says p = 12 "typically"; the MATLAB takes the
+  order from its caller and our config uses 16. "The Atal-Rabiner default 16"
+  attribution previously in `features.py` was wrong and is corrected (16 is the
+  MATLAB caller's convention). Value unchanged — parity binds.
+- **Framing changed:** the paper uses 10 ms non-overlapping blocks (N=100
+  @ 10 kHz); the MATLAB defaults to 32 ms / 10 ms. VUV6's attribution corrected
+  in place.
+- **Decision architecture (context for the classifier gate):** the paper never
+  thresholds a feature — it runs a 5-D Gaussian minimum-distance rule with full
+  class covariances, trained per recording condition (~6 s × 4 speakers), and
+  its Table I silence class measures **C1 = 0.649 ± 0.158** (above unvoiced at
+  0.007): the coloured-noise floor, in the paper's own 1976 data, absorbed by
+  training. See [docs/vuv_c1_decision.md](docs/vuv_c1_decision.md) §Q3 for why
+  that architecture made lag-1 survivable and a fixed-threshold rule has no
+  equivalent absorber.
+- **Status:** characterization, not correction. Parity with the MATLAB remains
+  the feature-layer gate; no reproduced value changes. Paper-vs-MATLAB
+  divergences are candidates only insofar as a *decision-layer* design chooses
+  the paper's form (as `r1` does for Eq. (3)); the feature layer never diverges.

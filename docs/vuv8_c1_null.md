@@ -162,3 +162,7 @@ Because per-frame C1 does not concentrate, the decision-rule gate opens on a
 This fork is the decision-rule gate's first question; the threshold value is
 downstream of it and still blocked until it (and the fixture check of item 4's
 prediction) are settled.
+
+*(Resolved 2026-07-16 — the fixture check confirmed the predictions and the fork
+is settled, by neither option: see [vuv_c1_decision.md](vuv_c1_decision.md), the
+decision record paired with this derivation, and REFERENCE_NOTES VUV8/VUV10.)*
