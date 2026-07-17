@@ -1224,3 +1224,109 @@ VUV1).
   the build; no filter implemented, no value set. Cross-ref VUV1 (J2/J3
   standing), VUV6 (input neutrality), VUV7 (fork-scoping), VUV10 (the dropped
   front end).
+
+### VUV13. Strong aspiration is a bounded limit of any fixed lag-1 threshold — the voiceless-vowel physics (kin to VUV11)
+
+Ratified at the ρ_env gate (2026-07-17), from the literature search that gate
+commissioned. This is the more fundamental of the two ledgered limits, because
+it is physics, not fixture construction:
+
+- **The mechanism.** Aspiration ([h], the aspirated interval of stops) is
+  **acoustically a voiceless vowel**: a glottal turbulence source — per Klatt
+  (1980, p. 7), the synthesis-standard turbulence source is broadband through
+  a −6 dB/octave low-pass, only ~6 dB/oct flatter than the voicing source —
+  filtered by the **full vocal tract**, so its spectral envelope is the
+  co-articulated vowel's envelope with a noise excitation. Since lag-1
+  correlation is determined by the spectrum, **aspiration's ρ approaches the
+  vowel's own ρ. No fixed lag-1 threshold at any α excludes it, ever** — the
+  same shape as the hum finding (VUV12), one level up: not an impostor by
+  periodicity, but by spectral envelope. D3's aspiration (band-limited
+  300–6000 Hz, ρ = 0.271) is a **mild instance**; real strong aspiration sits
+  higher. Corroborations in data that predate our fixtures: Table I's
+  unvoiced class reaches +2σ ≈ 0.71 (its upper tail is this material) and its
+  booth silence — low-pass coloured, the environmental cousin — reads 0.649.
+- **The limit, in VUV11's shape:** stated (a fixed-threshold `r1` rule labels
+  strongly-aspirated non-voiced frames voiced), stratified (D3's `hnr_db`
+  channel is the fixture-side instrument; corpus scoring must report
+  aspirated segments separately), Track-B-falsifiable (real [h]/aspirated-stop
+  segments against EGG ground truth measure where real aspiration actually
+  sits; consistently low measured ρ would show the voiceless-vowel concern
+  overstated for real corpora — the falsifier runs in the opposite direction
+  from VUV11's).
+- **Consequence for ρ_env** (see [docs/vuv_rho_env.md](docs/vuv_rho_env.md)):
+  Table I's unvoiced class *bundles* this excluded material in its upper
+  tail, so a margin constructed to cover the full class double-counts this
+  limit into the threshold — the mechanism behind the derivation's
+  under-determination finding.
+- **The forcing function it hands the pitch-lag route.** Aspiration has the
+  vowel's *envelope* but **no peak at the pitch lag** (D3 measured: breathy
+  voiced +0.482 vs aspiration +0.013 at lag 89) — the pitch-lag statistic
+  dissolves this limit outright. That is now **two independent limits (D2 /
+  VUV11, aspiration / VUV13) pointing at the same escape**, which sits in
+  docs/vuv_c1_decision.md §Further research behind the F0-circularity open
+  question.
+- **Status:** ledgered limit of the fixed lag-1 architecture; binds the
+  scorer (aspiration-stratified reporting) and any ρ_env declaration (the
+  exclusion must be named in its rationale, per the derivation doc). Cross-ref
+  VUV11 (the sibling limit), VUV12 (the hum kin), VUV14 (the convergence),
+  docs/vuv_rho_env.md.
+
+### VUV14. The convergence: lag-1 is established wrong-for-this-job from three independent directions, and its successor is identified
+
+Recorded at the ρ_env gate (2026-07-17). VUV11, VUV13 and the ρ_env
+declaration each arrived at a limit of the fixed lag-1 architecture, and
+filing them as three separate caveats **understates what they are jointly**.
+Their independence is the point — they come from different evidence classes
+and could not have contaminated one another:
+
+1. **Fixture-constructed (VUV11).** D2's voiced frication at VFR ≈ 0 dB: no
+   lag-1 statistic separates the matched pair per-frame (~1.0 σ; `r1` voiced
+   −0.055 ± 0.052 vs unvoiced −0.159 ± 0.049), and any `r1` threshold clearing
+   D3's aspiration necessarily rejects it.
+2. **Physics/literature (VUV13).** Aspiration is acoustically a voiceless
+   vowel (Klatt's turbulence source only ~6 dB/oct flatter than voicing,
+   full-tract filtered), so its ρ approaches the co-articulated vowel's: **no
+   fixed lag-1 threshold excludes strong aspiration at any α, ever.** Nothing
+   fixture-derived; it would hold if D1–D3 had never been built.
+3. **The source paper's own real-speech measurements (docs/vuv_rho_env.md).**
+   Table I's classes overlap at 2σ *in this exact statistic* — unvoiced +2σ
+   (colour) ≈ 0.71 against voiced −2σ ≈ 0.73 — so a 1-D lag-1 margin carries
+   **~2% error on each side on 1976's easy material** (booth, read speech, four
+   speakers) *before* any hard case. Measured in 1976, five decades before our
+   fixtures existed. Sharper still: the ρ_env evidence **cannot determine
+   whether a by-construction-voiced region is inside the envelope at all** —
+   the admitted margin range (0.53–0.81 at 16 kHz) straddles D3's breathy
+   voice, which survives only at the range's floor. When the evidence cannot
+   place a clearly-voiced signal on the voiced side, the statistic is not
+   merely imprecise for the job.
+
+**The finding.** Three independent lines — one constructed, one physical, one
+historical-empirical — converge on the same conclusion: lag-1 correlation is
+not *suboptimal* for voicing detection, it is **wrong for this job**, and the
+1976 system's five-dimensional trained classifier was the remedy for exactly
+this (VUV10, VUV11's Mahalanobis finding). Convergence from independent
+directions is stronger evidence than any one line, and is the reason this is
+its own entry.
+
+**What does not change.** Fixed-threshold `r1` with a stated operating
+envelope remains the **ratified architecture** and ships. This entry re-opens
+nothing: the limits are stated, stratified, and Track-B-falsifiable
+(VUV11/VUV13), which is the honest form for a bounded detector.
+
+**The successor is identified, and its blocker is named.** The pitch-lag
+correlation dissolves all three: aspiration outright (D3 measured +0.482
+voiced vs **+0.013** aspiration at lag 89 — the voiceless-vowel envelope has
+no peak at the pitch lag), the coloured floor generally (noise colour decays
+by lag 89 — a ~20× lower floor than lag-1 on D3), and D2 at least
+sign-correctly (+0.068 vs −0.020, still marginal — D2 stays hard for any
+correlation feature). Its blocker is the **F0 circularity**: a pitch-lag
+statistic needs an F0 estimate, and F0 estimation conventionally needs a
+voicing decision — whether voicing gates F0, F0 gates voicing, or the two
+co-estimate is a genuine open research question (docs/vuv_c1_decision.md
+§Further research), with the lag-band generalization (VUV4's jitter knob) and
+the conditioning-corner interaction (VUV12) attached to it.
+
+- **Status:** finding recorded; the architecture stands. **Step 9's YIN work
+  inherits this case already made** — the successor's motivation does not need
+  re-deriving, only its circularity resolved. Cross-ref VUV11, VUV13,
+  docs/vuv_rho_env.md, docs/vuv_c1_decision.md §Further research.
