@@ -204,3 +204,86 @@ no-jitter / unmodulated-turbulence recipes are optimistic for the periodicity
 features (hardening knobs named); and D1's energy-defeat is asymptotic-in-the-tail,
 provable only under SNR-stratified scoring. Still no classifier, no thresholds,
 no scorer — ground truth and its assertions only.
+
+## The conditioning-hazard fixtures (H0–H4)
+
+These exercise VUV12's input-conditioning precondition against the helper and
+check (`voicekit.vuv.conditioning`). Generator: `make_vuv_conditioning.py`,
+`SEED = 11` — deliberately *not* the D-series' `SEED = 7`, so the two families
+draw independent noise realizations and no accidental coupling can hide between
+them.
+
+**Shape: a set of single-condition signals, not one signal with regions.** This
+departs from D1–D3 and the reason is granularity, not inconsistency:
+`check_precondition` is a **signal-global** predicate (`|mean|/rms` and the
+sub-70 Hz energy fraction integrate over the whole signal), while `r1` is
+per-frame. A "DC region" inside a longer clean signal would have its offset
+diluted by everything around it, so the check would see a *mixture* rather than
+the condition under test. Hence one `.wav` per case and one shared
+`vuv_h_cases.labels.npz` carrying a per-**case** label.
+
+Ground truth is the same feature-free rule as the D-series: a case is **V** iff
+a quasi-periodic glottal source was summed into it. Note what the rule settles
+by itself — H2's hum is periodic but is **not phonation**, so H2 is **N**. The
+impostor is stated in the ground truth, not discovered by a measurement.
+
+| case | construction | label |
+|---|---|---|
+| H0 `clean` | `synth_vowel(f0=120)` — control | V |
+| H1 `dc` | white noise σ + DC `d = 2.5σ` | N |
+| H2 `hum` | white noise σ + 50 Hz at 3σ RMS — **the impostor** | N |
+| H3 `humvoiced` | `synth_vowel(f0=120)` + 50 Hz at 1× speech RMS | V |
+| H4 `lowf0` | `synth_vowel(f0=85)` — the check's false-positive probe | V |
+
+Levels are reasoned, not tuned: `d = 2.5σ` is the smallest round offset driving
+`r1` above the *entire* declared ρ_env range (0.53–0.81), so the false-voiced
+reading is unambiguous; hum at 3σ does the same (clearing 0.81 needs > 2.06σ).
+
+### Predicted before building, measured after (derive → predict → check)
+
+Predictions were written and reviewed *before* the fixture existed, per VUV12.
+
+| case | `r1` uncond. pred / meas | `r1` cond. pred / meas | check pred / meas |
+|---|---|---|---|
+| H0 | +0.99 ±0.02 / **+0.9842** ✓ | drop <0.01 / **0.0017** ✓ | silent / **silent** ✓ |
+| H1 | +0.862 ±0.02 / **+0.8646** ✓ | −0.012 ±0.03 / **+0.0038** ✓ | RAISES, ratio 0.929 / **RAISES, 0.9292** ✓ |
+| H2 | +0.900 ±0.02 / **+0.8971** ✓ | +0.006 ±0.03 / **+0.0359** ✓ (edge) | WARNS, frac 0.90 / **WARNS, 0.8999** ✓ |
+| H3 | +0.99 ±0.01 / **+0.9918** ✓ | +0.98 ±0.03 / **+0.9826** ✓ | WARNS, frac 0.50 / **WARNS, 0.5002** ✓ |
+| H4 | +0.99 ±0.02 / **+0.9868** ✓ | +0.98 ±0.03 / **+0.9824** ✓ | silent, frac <0.02 / **silent, 0.0008** ✓ |
+
+**The headline (H2): 0.897 → 0.036.** The impostor reads unambiguously voiced
+unconditioned and unambiguously non-voiced after `condition()`. Its lag-1
+correlation is `cos(2π·50/16000) = 0.99981` and it *is* periodic, so no
+threshold at any α rejects it — only the filter does.
+
+**The one prediction that strained its band (H2 conditioned, +0.006 predicted
+vs +0.0359 measured — inside by 0.0001).** Investigated rather than waved
+through, and the fixture was **not** regenerated to get a friendlier draw (that
+would be fixture-fitting). Cause: this signal's noise draw has conditioned
+ρ = +0.0197 where the asymptotic value is −0.0115; re-predicting with that
+draw's measured ρ gives **+0.0363 against +0.0359 measured**, so the
+derivation's structure is exact and the gap is realization scatter — which is
+what the ±0.03 band was stated for. The asymptotic derivation was checked
+independently over 25 draws: **−0.0111 ± 0.0017 vs −0.0115 derived (0.3 SE)**.
+Lesson for reuse: the derivation's *point* estimates for near-zero conditioned
+values are realization-dominated; its *structure* is not.
+
+### What these add over the helper's inline tests
+
+Stated plainly, because most of it is regression coverage:
+
+- **Genuinely unreachable inline:** H4's boundary question needs harmonic and
+  formant structure — an inline sinusoid has no harmonics and cannot answer
+  whether a low-F0 *voice* trips the check. Likewise H0/H3's conditioning delta
+  on realistic voiced material.
+- **Regression coverage, as such:** the helper's inline tests already prove
+  DC/hum firing. H1/H2 as committed artifacts prove it *stays* — pinning the
+  check's constants and the filter against drift.
+- **The hazard, inspectable:** 0.897 → 0.036 as an artifact one can load and
+  look at, rather than a number in a docstring.
+
+Not what these are for: ρ_env caveat (a)'s measurement (does conditioning move
+the *fixtures'* `r1` enough to matter) needs no new fixture — D1/D2/D3 exist and
+it is `condition()` then re-measure. It is a separate follow-up under its own
+guard, and H0's tiny delta **must not** be generalized to D3's breathy region,
+which is tilted low by construction and may move more.

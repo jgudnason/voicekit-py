@@ -1492,3 +1492,42 @@ evidence that the artifact is a lab record rather than a usable trained model.
   to be); **VUV11** (the guarded joint route — any return to a multivariate rule
   needs a redistributable corpus, which E's rejection establishes does not
   exist); **VUV10** (the paper's decision architecture, which E implements).
+
+### VUV16. The sub-band check is not near a false-positive boundary for modal speech — the warn-not-raise ruling is more conservative than it needs to be
+
+Measured on the H4 fixture (2026-07-17), against a prediction written before the
+fixture existed. This is the finding the H-series' boundary probe was built to
+produce, and it is recorded **either way** by prior agreement — a silent H4 is
+not "nothing happened".
+
+- **The concern it tests.** VUV12 ruled that the sub-band check **warns** rather
+  than raises because its threshold is shakier than the DC check's: 50/60 Hz hum
+  sits at the bottom of modal phonation, so a ~70 Hz band edge might
+  false-positive on a genuinely low male voice. That concern is what bought the
+  named cost — **hum only warns**.
+- **The measurement.** H4 is a clean `synth_vowel` at **F0 = 85 Hz** (a
+  realistic low-male floor). Predicted: sub-70 Hz energy fraction < 0.02, check
+  silent. Measured: **0.0008** — silent, with **~125× margin** below the 0.1
+  threshold, two orders from firing.
+- **Why, structurally (this is the part that generalizes).** A periodic signal's
+  **fundamental is its lowest component**: an 85 Hz voice has *no* harmonic
+  below 85 Hz, so its sub-70 Hz content is spectral leakage only. **Hum at
+  50/60 Hz sits below the fundamental of any modal voice, not among the
+  harmonics of a low one.** The feared overlap between the check's band and
+  modal phonation does not exist — the two are separated by construction of what
+  phonation *is*, not by a lucky threshold choice.
+- **The finding:** the warn-not-raise ruling is **more conservative than the
+  evidence requires**. It is not wrong — it costs only that hum warns instead of
+  raising — but the reason it was chosen (proximity to a false-positive
+  boundary) is not borne out for modal speech. **Not re-opened here:** the
+  ruling stands until Track B, where real recordings can show whether anything
+  else (very low F0, vocal fry, non-modal phonation, sub-70 Hz room modes) sits
+  near the edge in a way synthetic vowels do not. This entry exists so that
+  decision is made on evidence rather than on the original concern's momentum.
+- **The bound on the finding.** It says nothing about **F0 < 70 Hz**: below the
+  modal floor a signal genuinely carries sub-phonation energy, so firing there is
+  the edge working, not failing. The fixture deliberately contains no such case
+  (it would test the constant's arithmetic, not the physical question).
+- **Status:** finding recorded; ruling unchanged, revisitable at Track B with
+  this as its input. Cross-ref VUV12 (the ruling and its named cost),
+  `tests/synthetic/README.md` (the H-series predictions and outcomes).

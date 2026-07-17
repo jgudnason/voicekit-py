@@ -104,3 +104,48 @@ def load_discriminating_fixture(name: str, directory: Path = FIXTURE_DIR) -> Dis
         hard_param_name=str(labels["hard_param_name"]),
         gci_construction=labels["gci_construction"].astype(np.int64),
     )
+
+
+@dataclass(frozen=True)
+class ConditioningCase:
+    """One conditioning-hazard case (H-series): a whole signal at one condition.
+
+    **Deliberately not region-shaped**, unlike the D-series: `check_precondition`
+    is a *signal-global* predicate, so each case must be its own uniform signal
+    or the check would see a mixture rather than the condition (see
+    ``make_vuv_conditioning.py``). Hence a per-*case* label, not a region table.
+    ``label`` is the binary ground truth by construction (V iff a quasi-periodic
+    glottal source was summed in -- hum is periodic but is **not** phonation, so
+    the hum-only case is N). ``hazard`` names which hazard is present.
+    """
+
+    name: str
+    signal: Signal
+    label: str  # 'V' or 'N'
+    kind: str
+    hazard: str  # 'none' | 'dc' | 'hum'
+
+    @property
+    def fs(self) -> int:
+        return self.signal.fs
+
+
+def load_conditioning_cases(directory: Path = FIXTURE_DIR) -> list[ConditioningCase]:
+    """Load all committed H-series cases (five ``.wav`` + one shared labels file)."""
+    labels = np.load(directory / "vuv_h_cases.labels.npz")
+    return [
+        ConditioningCase(
+            name=str(name),
+            signal=read_wav(directory / f"{name}.wav"),
+            label=str(label),
+            kind=str(kind),
+            hazard=str(hazard),
+        )
+        for name, label, kind, hazard in zip(
+            labels["case_name"],
+            labels["case_label"],
+            labels["case_kind"],
+            labels["case_hazard"],
+            strict=True,
+        )
+    ]
