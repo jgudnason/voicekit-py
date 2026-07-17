@@ -141,18 +141,31 @@ E[C1] ≈ 2ρ     (white ρ=0 recovers E[C1]=0)
   **does not concentrate with N**: `std ≈ 1` at any frame length. Voiced sits at
   `2ρ_v ≈ 1.4`; voiced and the non-voiced tail overlap heavily frame-by-frame. No
   threshold fixes this — it is a property of the statistic, not of where the
-  threshold sits. **Independent corroboration:** the reference's own decision
-  stage applied `medfilt1` to smooth C1 — the reference knew and smoothed.
+  threshold sits. **This rests on the derivation above, and on nothing else.**
+  An earlier version of this note claimed independent corroboration — that the
+  reference's decision stage smoothed `C1` with `medfilt1`, so "the reference
+  knew." **That claim was false and is withdrawn** (established from source,
+  2026-07-17): the reference's only `medfilt1` is a 3-frame median on the
+  *label sequence* (`vus`, "get rid of spurious frames"), which is the paper's
+  3-level contour smoothing simplified to a median filter — post-processing of
+  a decision, not a `C1` remedy. **No `medfilt1` is applied to `C1` anywhere in
+  the reference.** The finding is unaffected: it is a derivation, not evidence.
+  See REFERENCE_NOTES VUV8 and VUV15 for what the correction implies (the
+  reference never noticed the broadcast's consequence at all).
 
 ## The decision-rule gate's opening question (not a threshold question)
 
 Because per-frame C1 does not concentrate, the decision-rule gate opens on a
 **structural** fork, which must **not** be absorbed into a threshold choice:
 
-1. **Smooth `C1` across frames** (what the reference did with `medfilt1`). Keeps
-   the reproduced, golden-mastered formula, but the decision stops being
-   per-frame, and the smoothing window needs its **own out-of-sample provenance**
-   — it cannot be fitted to D1/D2/D3 any more than the threshold can.
+1. **Smooth `C1` across frames.** Keeps the reproduced, golden-mastered formula,
+   but the decision stops being per-frame, and the smoothing window needs its
+   **own out-of-sample provenance** — it cannot be fitted to D1/D2/D3 any more
+   than the threshold can. (An earlier version of this note glossed this option
+   as "what the reference did with `medfilt1`". **That provenance claim was
+   false** — the reference smooths its *label sequence*, never `C1`; see the
+   withdrawal above. The option itself was real; only its pedigree was
+   invented.)
 2. **Use the add-once C1** (bounded, a proper normalized cross-correlation that
    concentrates as `1/√N`, making a per-frame threshold viable). But this
    **corrects a reproduced reference quirk**, diverging from the just-golden-

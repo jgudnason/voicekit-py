@@ -195,8 +195,8 @@ band W (336 samples = 21 ms), longer at z=3 than D1's *entire* 370 ms
 voiced→offset→tail structure, and longer at either z than the 220 ms
 decay+tail region D1 exists to discriminate. A smoothing window that erases
 the transition it is meant to detect is structurally unfit, independent of
-where the threshold sits. The reference's own `medfilt1` remedy does not
-transfer — see below.
+where the threshold sits — and this rests on the measurement above, not on
+anything the reference did (see "What the reference actually smoothed" below).
 
 No threshold value is set here. The `r1` threshold's provenance remains as
 ratified (VUV1): derived from the analytic null (`1/√N` — the *textbook* null
@@ -231,18 +231,34 @@ of lags, a fixed-bin pitch-lag statistic must widen to a lag-band search
 (max correlation over `fs/f0_max … fs/f0_min`). Same machinery; the fixture
 assertion widens the same way when the jitter knob turns.
 
-**Why the reference's own remedy doesn't transfer.** The reference's decision
-stage applied `medfilt1` to C1 — evidence its author knew per-frame C1 was
-noisy. The null derivation now explains *why* (two-sample boundary
-domination) and quantifies why the same remedy cannot rescue our case: the
-required window (330–750 ms, above) is 16–36× our guard band and longer than
-D1's discriminating structure. Smoothing a statistic whose noise does not
-concentrate is paying time resolution for variance reduction at a rate fixed
-by the O(1) spread; the reference could afford it (its consumers had no D1),
-we cannot. The 1976 paper also smoothed — a nonlinear smoothing of the
-3-level decision contour using per-class probability measures (Eq. 11) — but
-as post-processing of a trained rule's output, not as the thing that makes a
-threshold viable at all.
+**What the reference actually smoothed — a correction, and a better story.**
+Earlier versions of this document and of [vuv8_c1_null.md](vuv8_c1_null.md)
+claimed the reference's decision stage applied `medfilt1` to `C1`, "evidence
+its author knew per-frame `C1` was noisy," and leaned on it as independent
+corroboration. **That claim was false and is withdrawn** (established from
+source, 2026-07-17 — VUV15). The reference's only `medfilt1` is a 3-frame
+median on the **label sequence** (`vus`, the author's own comment: "get rid of
+spurious frames") — the 1976 paper's 3-level contour smoothing, simplified from
+its per-class-probability nonlinear smoother (Eq. 11) to a median filter. It is
+post-processing of a decision. **No `medfilt1` is applied to `C1` anywhere in
+the reference.**
+
+*What dies:* the corroboration claim, here and in the null note. *What stands:*
+everything load-bearing — the null derivation (it is math, not evidence) and the
+330–750 ms measurement above (our own, and the actual reason smoothing is
+unfit). Smoothing a statistic whose noise does not concentrate pays time
+resolution for variance reduction at a rate fixed by the O(1) spread; that
+argument never needed the reference's endorsement.
+
+*The corrected story is stronger.* The reference's author **never noticed the
+broadcast's consequence at all** — no remedy was ever applied to `C1`, because
+nobody saw a problem. That is exactly what a silent one-parenthesis
+vectorization error looks like from the inside, and it is what the Atal-Rabiner
+comparison independently established (§Q2: the denominator implements Eq. (3)
+term-for-term; only the numerator's parenthesis slipped). The false
+corroboration was in tension with that picture — an author who knew `C1` was
+two-sample-dominated would have found the bug — and removing it makes the
+account coherent.
 
 **The coloured-noise floor is a family property.** Any correlation-family
 feature carries `E[stat] ≈ ρ_noise(lag)` on aperiodic input — it is a

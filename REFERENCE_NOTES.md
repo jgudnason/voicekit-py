@@ -963,13 +963,22 @@ full derivation and predictions in [docs/vuv8_c1_null.md](docs/vuv8_c1_null.md).
   **single boundary product**, not an average, so it does **not concentrate with
   N** — `std ≈ 1` at any frame length, while voiced sits at `2ρ_v ≈ 1.4`; the two
   overlap heavily frame-by-frame. No threshold fixes this — it is a property of
-  the *statistic*, not of where the threshold sits. **Independent corroboration:
-  the reference's own decision stage applied `medfilt1`** — it knew, and smoothed.
+  the *statistic*, not of where the threshold sits. **This rests on the
+  derivation alone.** A claimed independent corroboration — that the reference's
+  decision stage applied `medfilt1` to `C1`, so "it knew, and smoothed" — was
+  **false and is withdrawn** (from source, 2026-07-17; VUV15): the reference's
+  only `medfilt1` is a 3-frame median on the **label sequence**, the paper's
+  3-level contour smoothing as post-processing of a decision. **Nothing in the
+  reference smooths `C1`.** The finding is unaffected (a derivation is not
+  evidence); the corrected story is stronger — the author never noticed the
+  broadcast's consequence, which is what a silent one-parenthesis vectorization
+  error looks like from the inside (VUV7/VUV10).
 - **This hands the decision-rule gate its OPENING QUESTION** (structural — it must
   **not** be absorbed into a threshold choice): (a) **smooth C1 across frames**
-  (the reference's `medfilt1`; keeps the golden-mastered formula, but the decision
-  stops being per-frame and the smoothing window needs its **own** out-of-sample
-  provenance, un-fittable to D1/D2/D3); or (b) **use the add-once C1** (bounded,
+  (keeps the golden-mastered formula, but the decision stops being per-frame and
+  the smoothing window needs its **own** out-of-sample provenance, un-fittable to
+  D1/D2/D3 — this option was real, but its "the reference did it" pedigree was
+  invented, see above); or (b) **use the add-once C1** (bounded,
   concentrates as `1/√N`, per-frame threshold viable — but it **corrects a
   reproduced quirk**, diverging from the golden-mastered feature layer, so it needs
   a **named quarantine flag and its own ledger entry** per reproduce-and-quarantine).
