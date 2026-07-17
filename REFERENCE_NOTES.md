@@ -1133,30 +1133,94 @@ reframed the options.
   trained-Gaussian context), docs/vuv_c1_decision.md (r1 and the D2 numbers it
   already records).
 
-### VUV12. Input conditioning for `r1` (DC/rumble) — J2's physics at 0 Hz; filtering not gating; own gate
+### VUV12. Input conditioning for `r1` (DC/hum/rumble): P3 with enforcement — precondition + helper + violation check; gate closed
 
-Surfaced at the decision-rule gate opening (2026-07-16); deliberately **not**
-decided there. The paper high-passes at 200 Hz (its Eq. (1) two-pole/two-zero
-filter) **before all five features**; the MATLAB dropped that preprocessing and
-compensated only `alp1`/`Ep` via the DC-offset covariance LPC (VUV10) — so
-`C1`/`r1` read a **raw** frame. A DC offset or sub-speech-band rumble drives
-`r1` → 1: DC is the limit case of low-pass colour, making this the silence
-pre-gate's J2 problem at 0 Hz (VUV1). Distinctives:
+Surfaced at the decision-rule gate opening (2026-07-16); **closed at its own
+gate (2026-07-17)**. This rewrite replaces the open-question form of the entry;
+the ratified decision is the entry. Background (unchanged): the paper
+high-passes at 200 Hz (its Eq. (1) two-pole/two-zero filter) **before all five
+features**; the MATLAB dropped that preprocessing and compensated only
+`alp1`/`Ep` via the DC-offset covariance LPC (VUV10) — so `C1`/`r1` read a
+**raw** frame, and a DC offset or sub-speech-band energy drives `r1` → 1 (DC is
+the limit case of low-pass colour — the silence pre-gate's J2 problem at 0 Hz,
+VUV1).
 
-- **The fix is paper-mandated and is *filtering*, not gating** — a front-end
-  high-pass (or per-frame mean removal for DC alone), not a threshold. It
-  therefore has clean provenance (the paper's own front end) and none of the
-  floor-guard calibration questions.
-- **But it collides with the grid's ratified input-neutrality clause** (VUV6:
-  "applied at the signal's own fs with no internal resample" was the ratified
-  form — the frame centres are identical whatever signal is framed). An
-  *internal* filter raises the analogous neutrality question: the detector
-  would no longer see the signal the caller passed. The structural question for
-  its own gate: **does input conditioning live inside the detector or upstream
-  in the pipeline?** (With a side question if internal: does mean-subtraction
-  alone suffice for the DC case, and what does it do to `r1`'s null — one lost
-  degree of freedom, still ~`1/√N`.)
-- **Status:** open structural question, deferred to its own gate. Must be
-  settled before the detector is exposed to real (non-fixture) recordings —
-  every committed fixture is zero-mean by construction, so no current test
-  exercises it (kin to the coverage-gap entries above).
+- **The hum fact — the physical reason conditioning is mandatory, not
+  paper-deference.** Mains hum is not colour, it is a **periodicity impostor**:
+  a 50 Hz hum at 16 kHz has lag-1 correlation cos(2π·50/16000) ≈ 0.9998 *and is
+  genuinely periodic*, so it defeats any threshold on any correlation statistic
+  **forever** — thresholds defend against noise, not against actual
+  periodicity. Once hum is in the frame it is undetectable downstream by
+  construction: `r1` cannot distinguish it from voicing even in principle. The
+  defense can only live at the input boundary — which is what promotes the
+  violation check below from optional to **load-bearing**.
+- **The decision: P3 with enforcement.** (1) A **documented precondition** on
+  `voicekit.vuv`: input DC-free and free of sub-speech-band energy. (2) An
+  **explicit conditioning helper owned by `voicekit.vuv`** (the consumer that
+  needs it — provenance kept local, matching the corpus-adapter pattern),
+  shipping the paper's Eq. (1) as its default, paper-cited, with the
+  cutoff-vs-F0 reasoning documented (below). (3) A **detectable-violation check
+  inside the detector** that *reads, never rewrites* its input — warning or
+  raising on DC/sub-band content. Analysis-without-modification keeps the
+  input-neutrality clause's letter *and* spirit (VUV6): the detector still sees
+  exactly what the caller passed; it merely refuses to answer confidently on
+  input it cannot answer correctly.
+- **Why P1 (detector-internal filtering) was rejected — in the terms that
+  decided it, not "internal filters are untidy."** P1's filter would sit above
+  the `frame_features_at` seam, so *formula* parity would survive — but it
+  would **permanently kill composed-path oracle-comparability**: the MATLAB
+  never filters, so no capture of a filtered path can exist, ever. It would be
+  the project's **first out-of-oracle transformation** — everything voicekit
+  does to a signal today (IAIF's filtering, YAGA's transforms) lives *inside*
+  the oracle's own path — dragging part of the feature path from
+  capture-and-match into define-the-target, which the fork-scoping (VUV7)
+  ratified for the *decision layer only*. P2 (automatic at I/O) is foreclosed
+  outright: every golden capture in the project was made on raw fixture
+  signals, and DESIGN §3's own precedent names the sin — explicit selection,
+  **never a silent downmix**; silent filtering is the same sin in the frequency
+  domain.
+- **Eq. (1)'s provenance — and its bound.** The paper's features are *defined
+  on the conditioned chain*: Fig. 1's order is scale → HPF → block →
+  measurements, so Table I's class means (silence C1 = 0.649, voiced 0.881)
+  were measured **post-HPF**. Eq. (1) is part of the feature definitions'
+  source, not an external choice, and is transferable (the MATLAB's own
+  commented-out transcription already generalized its coefficients to arbitrary
+  fs). The cutoff-vs-F0 worry resolves: Eq. (1) is a second-order section with
+  a double zero at DC and a resonance-shaped corner near 200 Hz — it
+  *attenuates* a low fundamental, not annihilates it; and `r1` does not need
+  the fundamental anyway (voiced high-`r1` comes from spectral tilt carried
+  through harmonics and formants above 200 Hz — Table I's voiced 0.881 was
+  measured with the HPF in the chain, on a corpus including male speakers).
+  **The bound, stated so nobody reads this gate as narrowing VUV1:** the 1976
+  silence class read C1 = 0.649 *after* high-passing — conditioning discharges
+  **J3 only** (caps the divergence at the 0 Hz end: DC, hum, rumble); J2's
+  mid-band colour and VUV1's operating-envelope statement stand **fully
+  unchanged**.
+- **The DC-vs-rumble split.** Per-frame mean removal inside
+  `frame_features_at` is **foreclosed outright** — it would change the
+  golden-mastered formulas themselves; parity dies at the *formula* seam, not
+  just the composed path. Signal-level mean removal is parameter-free but fixes
+  only constant offset (not drift, not hum), so it does **not** discharge
+  VUV12. Rumble/hum needs a real corner, hence a parameter, hence the
+  provenance above. The DC violation check is nearly parameter-free
+  (mean-to-RMS ratio, generous margin); the sub-band check needs the same band
+  a filter would.
+- **The named cost, not softened.** P3 buys parity (both senses: formulas
+  reproduce the oracle *and* the composed path stays oracle-comparable) and
+  neutrality, at the price of a **contract someone must uphold**: a warn-only
+  check can be ignored; whether real corpora arrive conditioned (or the helper
+  gets used) is untested until Track B; and the check's band needs the same
+  provenance a filter would — P3 *relocates* the parameter question rather than
+  dodging it, to a place where being wrong is **noisy** (a missing or spurious
+  warning) instead of **silently mislabeled** (wrong, confident, quiet).
+- **Two forward requirements.** (1) A DC/hum fixture must be built — nothing
+  currently exercises the hazard (every committed fixture is zero-mean by
+  construction); derive → predict → check once the helper/check land, never
+  before. (2) If the pitch-lag route (decision-doc further research) advances,
+  the conditioning corner and the lag band must be **reasoned jointly** — a
+  200 Hz HPF and a low-F0 lag search interact.
+- **Status:** placement ratified (P3 with enforcement) 2026-07-17. Helper,
+  check, and their parameters (with the provenance constraints above) belong to
+  the build; no filter implemented, no value set. Cross-ref VUV1 (J2/J3
+  standing), VUV6 (input neutrality), VUV7 (fork-scoping), VUV10 (the dropped
+  front end).
