@@ -133,3 +133,35 @@ def test_conditioning_clears_the_check_on_every_case():
             report = check_precondition(condition(case.signal))
         assert not report.dc_violation, case.name
         assert not report.sub_band_violation, case.name
+
+
+def test_conditioning_barely_moves_the_d_series_r1():
+    # Pins rho_env caveat (a)'s DISCHARGE (docs/vuv_rho_env.md): the D-fixtures'
+    # r1 values were measured unconditioned while the margin they are checked
+    # against derives from Table I's post-Eq.(1) chain, so the comparison is not
+    # chain-matched. Measured 2026-07-17: every region moves by |delta| <= 0.014
+    # -- an order below the 0.095 gap between D3's breathy (0.625) and the
+    # range's 0.53 floor -- and breathy moves UP (+0.009), away from the floor.
+    # Real in principle, negligible in practice.
+    #
+    # The bound is the caveat's claim, not a fitted constant: 0.02 is what
+    # "negligible against a 0.095 gap" means. This test does NOT license moving
+    # the range; the guard in the doc binds either way.
+    from tests.synthetic.vuv_fixture import load_discriminating_fixture
+
+    for name in ("vuv_d1_offset_16k", "vuv_d2_vfric_16k", "vuv_d3_breathy_16k"):
+        fx = load_discriminating_fixture(name)
+        conditioned = condition(fx.signal)
+        for i, kind in enumerate(fx.region_kind):
+            lo, hi = int(fx.region_start[i]), int(fx.region_end[i])
+            before = _region_r1_mean(fx.signal, lo, hi)
+            after = _region_r1_mean(conditioned, lo, hi)
+            assert abs(after - before) < 0.02, f"{name}/{kind}: {after - before:+.4f}"
+
+
+def _region_r1_mean(signal, lo: int, hi: int) -> float:
+    grid = VoicingGrid()
+    fl, hop = grid.frame_len(float(signal.fs)), grid.hop(float(signal.fs))
+    starts = range(max(lo, 1), hi - fl + 1, hop)
+    vals = [r1(signal.samples, st, fl) for st in starts]
+    return sum(vals) / len(vals)

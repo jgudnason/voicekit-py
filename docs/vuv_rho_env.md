@@ -206,12 +206,42 @@ are zero-mean synthetic with no sub-speech-band content). Two consequences:
   conditioning would move the fixtures' `r1` **downward**, and Step 3's
   comparison is therefore not chain-matched.
 
-**Whether that movement is large enough to matter is unmeasured, deliberately.**
-The measurement belongs with the conditioning helper (it needs the filter to
-exist) and must be run as a *check*, not as an input to the range: **it must not
-become a reason to revisit ρ_env's declared range.** A range chosen and then
-re-chosen after seeing what the fixtures do under conditioning is the fit this
-document already retracted once (see "The process finding").
+**Measured 2026-07-17 (the helper now exists) — and (a) is DISCHARGED.**
+`condition()` applied to D1/D2/D3, `r1` re-measured on the same regions, with
+predictions written before measuring:
+
+| region | measured Δr1 |
+|---|---|
+| D1 `voiced_steady` / `voiced_decay` / `subfloor_residual` | −0.0016 / +0.0008 / +0.0005 |
+| D1 `floor_lead` / `floor_trail` (white noise) | −0.0125 / −0.0117 |
+| D2 `voiced_modal` / `voiced_fricative` / `unvoiced_fricative` | −0.0015 / **+0.0020** / +0.0012 |
+| D3 `modal_voiced` / **`breathy_voiced`** / `aspiration` | −0.0010 / **+0.0094** / +0.0134 |
+
+- **Every delta is small** — max |Δ| = 0.0134, an order below the 0.095 gap
+  between breathy (0.625) and this range's floor (0.53). The conditioned-chain
+  gap is **real in principle and negligible in practice**.
+- **D3's breathy moved *up*** (0.625 → 0.634): *away* from the range's floor and
+  from the z=2 threshold, not toward it. The chain-matched comparison is
+  marginally *more* favourable than Step 3's, so the gap narrows and this caveat
+  weakens rather than bites.
+- **The range does not move, and nothing here argues it should.** The guard
+  binds regardless of which way the measurement fell — it ran as a check, not as
+  an input. Track B adjudicates.
+
+*A finding about the prediction, recorded because it was wrong.* Both regions
+with real content (D2 `voiced_fricative`, D3 `breathy_voiced`) were predicted at
+**−0.045** and measured **+0.002 / +0.009** — wrong sign. Cause, established:
+the first-order model treated Eq. (1) as "attenuate the fundamental, unity
+elsewhere", but the filter carries a **~0.6 dB low-frequency emphasis across the
+whole passband** (+0.43 dB at 500 Hz → −0.18 dB at 4 kHz) acting on *all* the
+energy — which alone predicts +0.0118 of `aspiration`'s +0.0134, a region with
+no fundamental at all — and the fundamental's energy share was overestimated
+~2× (measured `w` = 7.7% for breathy; the F1 resonance dominates the budget).
+Even corrected, the two-term model gives −0.0067 vs +0.0094: **the first-order
+model is inadequate.** The exact computation — apply `|H|²` to each region's own
+measured spectrum — reproduces all four deltas to within 0.0005. For a gently
+tilted filter the passband term is not a correction to the stopband term; it
+dominates.
 
 ### (b) The unmodeled bandwidth term in the fs conversion
 
