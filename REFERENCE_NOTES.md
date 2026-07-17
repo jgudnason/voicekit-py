@@ -1589,3 +1589,41 @@ aggregate score would hide precisely these.
 - **Status:** documented properties of the shipped detector. Binds the scorer
   (VFR/HNR/SNR-stratified reporting) and any user-facing docs. Cross-ref VUV5,
   VUV11, VUV12, VUV13, docs/vuv_rho_env.md.
+
+### VUV18. The "mask exercise" was cited as proving the frame-lookup rule; it never touched project() (rule 2, third instance)
+
+Found while building the derived per-cycle mask (2026-07-18), by reading the
+committed test. `test_d1_derived_mask_nans_nonvoiced_cycle_keeps_voiced_finite`
+was cited across five gates as proving the mask's GCI->frame lookup. **It never
+called `project()`.** It builds the mask from `_label_at` -- ground-truth region
+membership by GCI sample -- and asserts against a GCI **beyond the guard band
+W**, which is exactly the regime where `project()` (nearest-centre) and region
+membership *agree*. So the test structurally could not distinguish the
+production lookup from any other membership rule: **a test that could not fail
+for the reason it was cited.** The two things production actually does -- map
+each GCI through `project()`, read a real `VoicingTrack` verdict -- were neither
+exercised nor asserted.
+
+- **What it did prove** (and still does): the `apply_cycle_mask` nan-assignment
+  mechanics, and region membership beyond W. Its own docstring was honest about
+  using ground-truth labels; the false claim lived in how it was *cited*, not in
+  the test.
+- **Closed:** `test_d1_voicing_mask_real_path` runs the production path --
+  `detect_voicing` -> real track -> `apply_voicing_mask` with the `project()`
+  lookup (`VoicingTrack.frame_index`) -- and the committed seam-mechanics test
+  now carries a note pointing at it so the mis-citation cannot recur.
+- **Honest limit of even the fixed test:** within-W boundary behaviour is a
+  don't-care by construction (the guard band), so `project()`'s
+  rounding-at-the-boundary is *exercised* but not *asserted* against ground
+  truth -- there is nothing to assert, the region label is ambiguous there. That
+  rounding is pinned independently in `test_vuv_grid`
+  (`test_projection_nearest_center_known_samples`: 255->0, 416->1, 736->3), so
+  the coverage exists -- just not in D1, and confirmed to exist rather than
+  assumed.
+- **This is rule 2 (evidenced vs cited) firing a third time** -- next to the
+  false `medfilt1` corroboration (VUV15) and VUV16's non-existent overlap -- and
+  the **first instance touching a test's claimed coverage** rather than a doc's
+  claim. All three were caught the same way: by reading or measuring, never by
+  re-reasoning. Recorded in docs/working_method.md rule 2 as a standing case.
+- **Status:** gap closed; the working-method rule it instances is the durable
+  takeaway. Cross-ref docs/working_method.md (rule 2), VUV15, VUV16.

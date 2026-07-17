@@ -91,10 +91,14 @@ def test_d1_mask_exercise_runs_on_live_yaga():
 
 @pytest.mark.filterwarnings("ignore:kernel_size exceeds volume extent")
 def test_d1_derived_mask_nans_nonvoiced_cycle_keeps_voiced_finite():
-    """Downstream of detection: the per-cycle mask (ground-truth track projected
-    onto detected cycles) nans a non-voiced cycle's features and leaves a voiced
-    cycle's finite. The masked subset is illustrative of the apply_cycle_mask
-    seam mechanics; the final subset is a classifier-sub-gate decision."""
+    """Seam mechanics only: apply_cycle_mask with nan over a ground-truth mask.
+
+    NOTE (VUV18): this builds the mask from ``_label_at`` -- ground-truth region
+    membership -- and does **not** use `project()` or a real `VoicingTrack`. It
+    proves the nan-assignment mechanics and region membership, nothing about the
+    production frame-lookup. The production path (project() on a real track) is
+    `test_d1_voicing_mask_real_path`; do not cite this test for frame-lookup
+    coverage."""
     fx = load_discriminating_fixture(D1)
     fs = fx.fs
     res = yaga(fx.signal)
@@ -128,6 +132,63 @@ def test_d1_derived_mask_nans_nonvoiced_cycle_keeps_voiced_finite():
     for name in subset:
         assert np.isnan(raw[name][i_nonvoiced]), f"{name} not nan on masked cycle"
     assert np.isfinite(raw["naq"][i_voiced]), "voiced cycle wrongly altered"
+
+
+def test_d1_voicing_mask_real_path():
+    """The mask exercise on the PRODUCTION path (closes the VUV18 gap): a real
+    `VoicingTrack` from `detect_voicing`, then `apply_voicing_mask`, whose
+    GCI->frame lookup is `project()` via `VoicingTrack.frame_index`. The committed
+    seam-mechanics test above never touched `project()` -- it read ground-truth
+    region labels, and 'beyond W' is exactly where `project()` and region
+    membership agree, so it structurally could not distinguish them.
+
+    rho_env: the midpoint of the declared range (0.67), a stated convention (as
+    `MID` in test_vuv_detector), NOT chosen to pass. D1's regions are unambiguous
+    -- voiced_steady r1 ~ 0.98, sub-floor tail ~ 0.08-0.11, a ~0.9 gap -- so every
+    rho_env in the declared [0.53, 0.81] gives the identical verdict here. Rule 1:
+    the value is fixed by a rule and no fixture outcome can move it.
+
+    Honest limit: within-W boundary behaviour is a don't-care by construction (the
+    guard band), so project()'s rounding-at-the-boundary is *exercised* here but
+    not *asserted* against ground truth -- there is nothing to assert, the region
+    label is ambiguous there. project()'s rounding is pinned independently in
+    test_vuv_grid (test_projection_nearest_center_known_samples)."""
+    from voicekit.features import apply_voicing_mask
+    from voicekit.vuv import VuvConfig, detect_voicing
+
+    fx = load_discriminating_fixture(D1)
+    fs = fx.fs
+    res = yaga(fx.signal)
+    gci = res.gcis.gci
+    u = derive_flow(res.residual, fs)
+    feats = extract_voice_features(u, res.residual, fs, gci)
+
+    track = detect_voicing(fx.signal, VuvConfig(rho_env=0.67))
+    masked, reason = apply_voicing_mask(feats, gci, track)
+
+    t3, tso = _kind_span(fx, "subfloor_residual")
+    W = _grid_W(fs)
+    steady_lo, steady_hi = _kind_span(fx, "voiced_steady")
+
+    # A detected GCI in the sub-floor tail, beyond W past the V->N boundary. The
+    # real track (via project()) calls its frame non-voiced -> the cycle is
+    # masked. D1's sub-floor is ABOVE the -90 dBFS floor, so the reason is
+    # aperiodic, not floor -- exercising the reason channel too.
+    i_nv = next(i for i, g in enumerate(gci) if t3 <= g < tso and (g - t3) >= W)
+    assert reason[i_nv] == "aperiodic"
+    for name in ("f0", "cq", "qoq", "mfdr", "pa", "naq", "h1h2", "hrf"):
+        assert np.isnan(getattr(masked, name)[i_nv]), name
+    # Structural fields survive the mask.
+    assert masked.framek[i_nv] == feats.framek[i_nv]
+    assert masked.frame_len_ok[i_nv] == feats.frame_len_ok[i_nv]
+
+    # A voiced-steady cycle: track calls it voiced -> unmasked, features finite.
+    i_v = next(
+        i for i, g in enumerate(gci)
+        if steady_lo <= g < steady_hi and np.isfinite(feats.naq[i])
+    )
+    assert reason[i_v] == "voiced"
+    assert np.isfinite(masked.naq[i_v])
 
 
 def test_d1_exports_snr_stratification_metadata():

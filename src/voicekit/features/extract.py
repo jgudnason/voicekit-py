@@ -4,7 +4,18 @@ Wires the feature groups over one shared per-cycle prep (`prepare_cycles`) and r
 the `VoiceFeatures` container. The signal groups (flow, timing, spectral) consume the
 prep so ``useg``/``uuseg``, the DC-shift, and ``O1`` are computed once; the seam then
 applies the ``O1==0`` mask over the five timing/flow features.
+
+`apply_voicing_mask` is the step-7 bridge: an **explicit, opt-in** second
+`apply_cycle_mask` call that nans the source features of cycles the voicing
+detector called non-voiced. `extract_voice_features` stays track-free and
+parity-preserving -- masking is a composition step the caller applies, never a
+default, mirroring `voicekit.vuv.condition`.
 """
+
+from __future__ import annotations
+
+from dataclasses import replace
+from typing import TYPE_CHECKING
 
 import numpy as np
 import numpy.typing as npt
@@ -17,9 +28,20 @@ from voicekit.features.result import VoiceFeatures
 from voicekit.features.spectral import spectral_statistics
 from voicekit.features.timing import timing_statistics
 
+if TYPE_CHECKING:  # annotation only -- keeps the feature layer runtime-independent of vuv
+    from voicekit.vuv.decision import VoicingTrack
+
 # Features zeroed on a no-open-phase (O1==0) cycle, per the reference's degenerate
 # branch. f0/framek/frame_len_ok/h1h2/hrf are intentionally NOT in this set.
 _O1_ZERO_SUBSET = ("cq", "qoq", "mfdr", "pa", "naq")
+
+# Features nan'd on a NON-VOICED cycle -- the eight *source measurements*, all
+# meaningless when there is no glottal source. Larger than _O1_ZERO_SUBSET (which
+# is a real cycle with a degenerate open phase, so f0/spectrum survive): here the
+# condition is "no real cycle at all", so f0 (no phonation) and the spectral pair
+# (no harmonic structure) go too. framek (location) and frame_len_ok (geometry
+# flag) are STRUCTURAL -- defined regardless of source reality -- and are kept.
+_VOICING_MASK_SUBSET = ("f0", "cq", "qoq", "mfdr", "pa", "naq", "h1h2", "hrf")
 
 
 def apply_cycle_mask(
@@ -39,6 +61,66 @@ def apply_cycle_mask(
     """
     for name in subset:
         raw[name] = np.where(mask, value, raw[name])
+
+
+def apply_voicing_mask(
+    feats: VoiceFeatures,
+    gci: npt.NDArray[np.int64],
+    track: VoicingTrack,
+) -> tuple[VoiceFeatures, npt.NDArray[np.str_]]:
+    """Nan the source features of cycles the voicing detector called non-voiced.
+
+    The derived per-cycle mask (step-7 architecture gate): each cycle inherits
+    the verdict of the frame its GCI projects to. ``feats`` is one row per cycle,
+    aligned 1:1 with ``gci`` (row ``i`` begins at ``gci[i]``); ``track`` is a
+    `VoicingTrack` from `detect_voicing`. Returns a **new** `VoiceFeatures` with
+    the eight source measurements (`_VOICING_MASK_SUBSET`) set to ``NaN`` on every
+    non-voiced cycle, and a per-cycle **reason** array (``"voiced"`` / ``"floor"``
+    / ``"aperiodic"`` / ``"undefined"``) so the masking is observable, not just a
+    silent ``NaN``.
+
+    **Opt-in, never a default.** `extract_voice_features` is track-free and
+    parity-preserving; this is the composition step a caller applies when it
+    wants voiced-only source features, like `voicekit.vuv.condition`.
+
+    **Lookup.** GCI -> frame via `VoicingTrack.frame_index` (nearest-centre
+    `project`, the single-sourced formula) -- no second copy of the projection
+    arithmetic.
+
+    **Value, and composition with the O1==0 mask.** ``NaN``, not ``0.0``: a
+    non-voiced cycle is *uncomputable* (no glottal source), which has no reference
+    value -- unlike the O1==0 degenerate branch, whose ``0.0`` is the reference's
+    own defined output. The two masks compose; on a cycle that is both O1==0
+    (already ``0.0``) and non-voiced, **``NaN`` wins**, which is correct: no
+    source means no value, defined-degenerate or not.
+
+    **D2 propagation (VUV17), inherited visibly.** The detector cannot tell D2's
+    voiced frication from genuine aspiration -- that indistinguishability *is* the
+    VUV11 limit -- so voiced frication reads non-voiced and its (real, computable)
+    cycles are masked here with ``reason == "aperiodic"``. That is a documented
+    step-7 limit inherited into step-6 output, made **observable** by the reason
+    channel (``"aperiodic"``, not ``"floor"``): a caller who knows the material is
+    voiced frication can recover those cycles. Masked-by-default is the safe
+    choice (a visible ``NaN`` beats finite garbage from a spurious noise GCI); the
+    reason is what keeps the limit from being silent.
+    """
+    gci = np.atleast_1d(np.asarray(gci)).astype(np.int64)
+    reason = np.empty(len(gci), dtype="<U9")
+    for i, g in enumerate(gci):
+        k = track.frame_index(int(g))
+        if track.voiced[k]:
+            reason[i] = "voiced"
+        elif track.floor_gated[k]:  # silence takes precedence over the 0/0 it also causes
+            reason[i] = "floor"
+        elif track.undefined[k]:
+            reason[i] = "undefined"
+        else:
+            reason[i] = "aperiodic"
+
+    masked = reason != "voiced"
+    raw = {name: getattr(feats, name).copy() for name in _VOICING_MASK_SUBSET}
+    apply_cycle_mask(raw, masked, _VOICING_MASK_SUBSET, np.nan)
+    return replace(feats, **raw), reason
 
 
 def extract_voice_features(

@@ -69,5 +69,15 @@ class VoicingGrid:
         clamps against the actual track length. This is the single source for the
         derived mask's GCI -> frame lookup.
         """
-        fl, hp = self.frame_len(fs), self.hop(fs)
-        return round((sample - (fl - 1) / 2) / hp)
+        return project_to_frame(sample, self.frame_len(fs), self.hop(fs))
+
+
+def project_to_frame(sample: int, frame_len: int, hop: int) -> int:
+    """Nearest-centre frame index for ``sample``: ``round((s-(frame_len-1)/2)/hop)``.
+
+    **The single copy of the projection formula.** `VoicingGrid.project` (from a
+    grid + fs) and `VoicingTrack.frame_index` (from a self-describing track's own
+    ``frame_len``/``hop``) both delegate here, so the derived per-cycle mask's
+    GCI -> frame lookup uses this arithmetic and no re-derived second copy.
+    """
+    return round((sample - (frame_len - 1) / 2) / hop)

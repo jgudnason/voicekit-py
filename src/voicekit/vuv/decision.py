@@ -42,7 +42,7 @@ from scipy.special import ndtri
 
 from voicekit.signal import Signal
 from voicekit.vuv.conditioning import check_precondition
-from voicekit.vuv.grid import VoicingGrid
+from voicekit.vuv.grid import VoicingGrid, project_to_frame
 
 
 def r1(s: npt.NDArray[np.float64], start: int, frame_len: int) -> float:
@@ -226,6 +226,20 @@ class VoicingTrack:
         same arithmetic as `VoicingGrid.frame_centers` (its single source)."""
         k = np.arange(self.n_frames)
         return np.asarray(k * self.hop + (self.frame_len - 1) / 2, dtype=np.float64)
+
+    def frame_index(self, sample: int) -> int:
+        """Nearest-centre frame index for ``sample``, clamped to ``[0, n_frames)``.
+
+        The derived per-cycle mask's GCI -> frame lookup. Uses the track's own
+        ``frame_len``/``hop`` via the single projection formula
+        (`grid.project_to_frame`) -- not `VoicingGrid.project`, which would
+        recompute the framing from a *default* grid and silently mismatch a track
+        built from a non-default one. Edge samples project outside the frame
+        range; clamped here, since a GCI just past the last centre still belongs
+        to the last frame.
+        """
+        idx = project_to_frame(sample, self.frame_len, self.hop)
+        return int(np.clip(idx, 0, self.n_frames - 1))
 
 
 def detect_voicing(signal: Signal, config: VuvConfig) -> VoicingTrack:

@@ -1,7 +1,11 @@
 """Per-cycle voice source feature extraction (F0, NAQ, QOQ, H1-H2, HRF, ...)."""
 
 from voicekit.features.config import FeaturesConfig
-from voicekit.features.extract import apply_cycle_mask, extract_voice_features
+from voicekit.features.extract import (
+    apply_cycle_mask,
+    apply_voicing_mask,
+    extract_voice_features,
+)
 from voicekit.features.flow import flow_statistics
 from voicekit.features.flow_derivation import derive_flow
 from voicekit.features.framework import CyclePrep, cycle_framework, iter_cycle_segments
@@ -19,6 +23,7 @@ __all__ = [
     "FeaturesConfig",
     "VoiceFeatures",
     "apply_cycle_mask",
+    "apply_voicing_mask",
     "cycle_framework",
     "derive_flow",
     "extract_voice_features",

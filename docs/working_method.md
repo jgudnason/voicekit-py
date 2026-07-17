@@ -68,12 +68,19 @@ and false at the same time.
   phonation. Measured: an 85 Hz voice carries a sub-70 Hz energy fraction of
   0.0008 — a **125x margin** below the threshold. The feared overlap does not
   exist; the caution was more conservative than its evidence.
+- VUV18: the D1 "mask exercise" was cited across five gates as proving the
+  per-cycle mask's GCI→frame lookup. Reading it showed it never called
+  `project()` — it built the mask from ground-truth region membership and
+  asserted beyond the guard band W, exactly where `project()` and membership
+  *agree*, so it could not fail for the reason it was cited. **A test can be a
+  citation too**, and "the test covers X" is checkable by reading the test.
 
-Neither error changed a decision — but only because the decisions rested on the
-arguments that could carry them (the derivation is math; the check's confidence
-ordering had independent grounds), not on the corroborations that turned out to
-be hollow. Both were caught by **reading the source / running the measurement**,
-never by re-reasoning.
+The first two changed no decision — the decisions rested on the arguments that
+could carry them (the derivation is math; the check's confidence ordering had
+independent grounds), not on the hollow corroborations. The third was a coverage
+claim, not a decision, but the same shape: an assertion repeated until someone
+read it. All three were caught by **reading the source / running the
+measurement**, never by re-reasoning.
 
 *The rule.* A caution the build is **about to lean on** gets probed against
 source or measurement before it carries weight. Not every caution — one the
