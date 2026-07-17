@@ -141,6 +141,37 @@ class VuvConfig:
     energy (VUV12). ``False`` is the ratified **explicit** opt-out -- it makes
     "ignored" into "decided", on the record in your code."""
 
+    floor_dbfs: float = -90.0
+    """The recording-chain floor guard (J2): a frame whose RMS is below this
+    reads non-voiced and is flagged `VoicingTrack.floor_gated`. **A floor guard,
+    never a speech/silence detector** (VUV1) -- a level so low it can never
+    arbitrate speech content.
+
+    The default is the **16-bit LSB amplitude** (``20*log10(2**-15) = -90.3``,
+    rounded), stated against a **declared reference format of 16-bit** -- the
+    honest choice for this project's corpora. It is the conservative (higher)
+    end of the defensible band (16-bit quantization-noise RMS is -101 dBFS);
+    higher is the safe direction for a guard that must never eat speech. Nothing
+    above ~-66 dBFS is defensible under any format.
+
+    **Rule-1 note (docs/working_method.md):** this default was fixed *before any
+    fixture outcome was visible and no fixture can move it* -- the physical
+    argument (16-bit LSB) predates the guard, and the ~53 dB margin to D1's real
+    noise floor (-37.3 dBFS) means every committed fixture is silent to the
+    guard wherever in the -100..-90 band it sits. It is a physical constant with
+    a config override, not a fitted default -- and unlike `rho_env` (a per-
+    environment deployment property, hence no default) this is a **format**
+    constant, so 16-bit is the right thing to assume.
+
+    **The reference-format caveat:** the detector receives float arrays and does
+    not know the source bit depth. On a 24-bit or float recording, genuinely-
+    recorded content between that format's true floor and this 16-bit-referenced
+    guard would be pre-gated -- but speech at -90 dBFS RMS is not usable speech,
+    so "never arbitrates speech" survives in practice. A caller working below
+    16-bit resolution should lower ``floor_dbfs`` to their declared format's
+    floor (12-bit legacy corpus: ~-66; 24-bit: lower).
+    """
+
     def threshold(self, fs: float) -> float:
         """The decision threshold at ``fs``: ``rho_env + z(1-alpha)/sqrt(N)``."""
         n = self.grid.frame_len(fs)
@@ -159,16 +190,21 @@ class VoicingTrack:
     **Two pre-gate fields, where the architecture gate said "a field"** -- an
     extension, with its reason, so it does not read as drift. VUV1's pre-gate has
     two jobs of different standing, and they need different observability:
-    `undefined` is J1 (remedial: the statistic could not be computed) and
-    `floor_gated` is J2 (principled: below the recording-chain floor, landing as
-    a separable follow-up). A single combined field could not express the ratified
-    **anti-creep test** -- "the floor guard must never fire on any D1 frame" --
-    without special-casing frame 0, which J1 always flags. Two fields also mean
-    **no semantic change when J2 lands**: `floor_gated` ships all-``False``
-    ("no floor guard configured yet") and the anti-creep test can be written now,
-    passing until a guard creeps. The guard exists before the thing it guards.
-    And a later S/U/V widening wants J2 (silence), not J1 (a degenerate frame) --
-    conflating them would hand the widening the wrong signal.
+    `undefined` is J1 (remedial: the statistic could not be computed -- frame 0,
+    or a zero-energy frame where ``r1`` is 0/0) and `floor_gated` is J2
+    (principled: the frame's RMS is below the declared recording-chain floor,
+    `VuvConfig.floor_dbfs`). A single combined field could not express the
+    ratified **anti-creep test** -- "the floor guard must never fire on any D1
+    frame" -- without special-casing frame 0, which J1 always flags. And a later
+    S/U/V widening wants J2 (silence), not J1 (a degenerate frame) -- conflating
+    them would hand the widening the wrong signal, so **read `floor_gated` for
+    "this was silence".**
+
+    The two fire independently and both-true is coherent: a zero frame is
+    `undefined` (0/0) *and* `floor_gated` (RMS below the floor). They are not
+    redundant -- a near-silence frame (~-92 dBFS, e.g. dithered/quantization-
+    noise silence) has finite ``r1``, so J1 does not fire, but J2 does. J2
+    catches the silence J1 structurally cannot.
 
     Invariant: ``voiced`` implies neither ``undefined`` nor ``floor_gated``.
     """
@@ -226,11 +262,20 @@ def detect_voicing(signal: Signal, config: VuvConfig) -> VoicingTrack:
 
     voiced = np.zeros(n, dtype=np.bool_)
     undefined = np.zeros(n, dtype=np.bool_)
-    # J2's floor guard is a separable follow-up: no frame is floor-gated yet.
     floor_gated = np.zeros(n, dtype=np.bool_)
+    floor_rms = 10.0 ** (config.floor_dbfs / 20.0)  # dBFS -> linear RMS amplitude
 
     for k in range(n):
         start = k * hop
+        frame = s[start : start + frame_len]
+        # J2 (floor guard) is computed for EVERY frame, independent of J1: a
+        # near-silence frame (e.g. +-1 LSB, RMS ~ -92 dBFS) has finite r1, so J1
+        # does not fire on it, but it is below the floor -- J2 is what catches
+        # the silence J1 structurally cannot. Both-true is coherent (a zero
+        # frame is undefined AND below the floor).
+        rms = np.sqrt(float(frame @ frame) / len(frame))
+        floor_gated[k] = rms < floor_rms
+
         if start < 1:
             undefined[k] = True  # frame 0: no boundary sample for the lag
             continue
@@ -238,7 +283,10 @@ def detect_voicing(signal: Signal, config: VuvConfig) -> VoicingTrack:
         if not np.isfinite(value):
             undefined[k] = True  # zero-energy frame: r1 is 0/0
             continue
-        voiced[k] = value > threshold
+        # A floor-gated frame is non-voiced regardless of r1: r1 is scale-
+        # invariant, so a sub-floor periodic frame could clear the threshold,
+        # and the guard must win -- below the floor we do not trust the content.
+        voiced[k] = value > threshold and not floor_gated[k]
 
     return VoicingTrack(
         voiced=voiced,

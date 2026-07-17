@@ -76,12 +76,52 @@ def test_track_is_grid_shaped_and_self_describing():
     assert (track.fs, track.frame_len, track.hop) == (16000, 512, 160)
 
 
-def test_floor_gated_is_all_false_until_the_guard_lands():
-    # J2 is a separable follow-up (step 4). The field ships all-False, so its
-    # semantics do NOT change when the guard lands -- and the anti-creep test
-    # below can be written now.
-    sig = Signal(samples=np.ones(4000), fs=16000, source="t")
+def test_full_scale_signal_is_never_floor_gated():
+    # A 0.95-amplitude constant is ~ -0.4 dBFS, nowhere near the -90 dBFS floor.
+    sig = Signal(samples=np.full(4000, 0.95), fs=16000, source="t")
     assert not detect_voicing(sig, _config(enforce_precondition=False)).floor_gated.any()
+
+
+def test_digital_silence_is_floor_gated_and_never_voiced():
+    # J2's core case: a below-the-floor frame reads non-voiced and flags
+    # floor_gated. Exact-zero silence trips J1 too (0/0), so this is one of the
+    # both-true frames -- assert the floor-gating specifically.
+    sig = Signal(samples=np.zeros(4000), fs=16000, source="t")
+    track = detect_voicing(sig, _config(enforce_precondition=False))
+    assert track.floor_gated.all()
+    assert not track.voiced.any()
+
+
+def test_near_silence_is_floor_gated_but_not_undefined_j2_catches_what_j1_misses():
+    # The case that proves J2 is not redundant with J1: +-1 LSB dithered silence
+    # (~ -92 dBFS RMS) has FINITE r1, so J1 does not fire -- but it is below the
+    # -90 dBFS floor, so J2 does. This is why the fields are separate.
+    rng = np.random.default_rng(0)
+    x = rng.integers(-1, 2, 4000).astype(np.float64) * 2**-15  # ~ -92 dBFS
+    track = detect_voicing(Signal(samples=x, fs=16000, source="t"),
+                           _config(enforce_precondition=False))
+    interior = ~track.undefined  # exclude frame 0
+    assert track.floor_gated[interior].all()  # J2 fires
+    assert not track.undefined[interior].any()  # J1 does not (r1 is finite)
+    assert not track.voiced.any()
+
+
+def test_floor_guard_wins_over_a_sub_floor_periodic_frame():
+    # r1 is scale-invariant, so a very quiet periodic frame can clear the
+    # threshold. The guard must win: below the floor we do not trust the content.
+    fs = 16000
+    t = np.arange(4000) / fs
+    x = 2**-16 * np.sin(2 * np.pi * 200.0 * t)  # periodic (r1 ~ 1) but ~ -96 dBFS
+    track = detect_voicing(Signal(samples=x, fs=fs, source="t"),
+                           _config(enforce_precondition=False))
+    assert track.floor_gated.all()
+    assert not track.voiced.any()  # not voiced despite high r1
+
+
+def test_floor_dbfs_default_is_the_16bit_lsb():
+    # Rule-1 note: the default is the 16-bit LSB amplitude, a physical constant
+    # fixed before any fixture outcome and unmovable by the ~53 dB margin.
+    assert VuvConfig(rho_env=0.67).floor_dbfs == -90.0
 
 
 def test_voiced_implies_neither_diagnostic_fired():
@@ -92,12 +132,26 @@ def test_voiced_implies_neither_diagnostic_fired():
 
 
 def test_anti_creep_the_floor_guard_never_fires_on_d1():
-    # The ratified anti-creep guard (VUV1): D1's floor is a REAL noise floor,
-    # well above digital zero, so a floor guard that fired there would be
-    # arbitrating speech content. Written now, before the guard exists: it
-    # passes trivially today and fails loudly if the guard ever creeps.
+    # The ratified anti-creep guard (VUV1): D1's floor is a REAL noise floor
+    # (-37.3 dBFS RMS), 53 dB above the guard, so a floor guard that fired there
+    # would be arbitrating speech content. Written before the guard existed; its
+    # STAYING green now that the guard lands is the proof the guard did not
+    # creep -- guard-before-the-thing-it-guards, working.
     fx = load_discriminating_fixture("vuv_d1_offset_16k")
     assert not detect_voicing(fx.signal, MID).floor_gated.any()
+
+
+def test_floor_guard_fires_on_no_committed_fixture():
+    # The guard's green-in-isolation: nothing changes on any committed fixture,
+    # because every fixture floor sits >= ~15 dB above the guard. So the guard's
+    # arrival is behaviour-preserving on the whole suite (the digital-silence
+    # tests above are its only new firing).
+    for name in ("vuv_d1_offset_16k", "vuv_d2_vfric_16k", "vuv_d3_breathy_16k"):
+        fx = load_discriminating_fixture(name)
+        assert not detect_voicing(fx.signal, MID).floor_gated.any(), name
+    for case in load_conditioning_cases():
+        cfg = VuvConfig(rho_env=0.67, enforce_precondition=False)
+        assert not detect_voicing(case.signal, cfg).floor_gated.any(), case.name
 
 
 def _region_voiced_fraction(track, fx, kind):
