@@ -1330,3 +1330,149 @@ the conditioning-corner interaction (VUV12) attached to it.
   inherits this case already made** — the successor's motivation does not need
   re-deriving, only its circularity resolved. Cross-ref VUV11, VUV13,
   docs/vuv_rho_env.md, docs/vuv_c1_decision.md §Further research.
+
+### VUV15. "C" and "E" identified: the two never-reconciled voicing implementations, and the evidence that rejected each
+
+C and E are referred to throughout step 7's ledger and decision docs as the two
+never-reconciled voicing implementations in the prior research code, and the
+evidence rejecting each is the entire basis for the ratified decision-rule type
+(fixed threshold over a trained model) — but neither was identified anywhere in
+this repo, and the rejection evidence existed only in reasoning history. This
+entry closes that gap **from source**. It records *why* the decision was taken,
+not *whether*; the decision is ratified and is not re-opened here.
+
+**Both share the feature layer and nothing else.** Each calls
+`vuvMeasurements.m` — the five Atal-Rabiner features we golden-mastered
+(VUV7) — and then diverges completely.
+
+#### C — `voicedSegments.m` (unsupervised, per-utterance GMM)
+
+End-to-end: mean-subtract and peak-normalize the signal → `vuvMeasurements`
+(32 ms / 10 ms / `nar`=16) → **`gaussmix(FM,[],[],3,'v')`: an unsupervised
+3-component GMM fit to the input signal's *own* feature matrix** — there is no
+training corpus at all, C refits per utterance → heuristic component
+identification (lowest mean `Es` = silence; of the remaining two, lower mean
+`Nz` = voiced, higher = unvoiced) → `gmLik` → per-frame argmax → labels
+{1 = silence, 2 = unvoiced, 3 = voiced} → `medfilt1(vus,3)` on the **label
+sequence** ("get rid of spurious frames" — see the correction note below) →
+expansion of frame labels to per-sample labels. **C is live but uncaptured:**
+`weightedGIF.m` and `testOnVariousData.m` call it; no golden capture covers it.
+
+#### E — `vusDet.m` (supervised, trained Mahalanobis minimum-distance)
+
+End-to-end: `vuvMeasurements` → Mahalanobis distance from each frame's feature
+vector to three class centroids (`m` 3×5, `C` 5×15, one 5×5 covariance per
+class) → minimum-distance assignment → labels {−1 = unvoiced, 0 = silence,
+1 = voiced}. **E is the paper's own decision rule** (Atal & Rabiner Eq. (10),
+minimum Mahalanobis distance with per-class covariance — VUV10), where C has
+no paper basis. Its parameters come from `getVUSparameters.m` → `trainTimit.m`:
+**supervised training on TIMIT** — reads SPHERE `.wav` via `readsph`, reads the
+paired `.phn` phone labels, `vusLab.m` maps phones to {s, u, v} (vowels,
+semivowels/glides, nasals, and the voiced fricatives `v`/`dh`; explicitly "No
+Stops or Affricates", so voiced stops are labelled unvoiced), partitions frames
+by label, and takes per-class mean and covariance. **E is orphaned:** nothing
+in the prior research code calls `vusDet.m`.
+
+#### Why they were never reconciled (DESIGN §9 step 7's premise, from source)
+
+They disagree on **everything below the feature layer**, not on one axis:
+
+| | C (`voicedSegments.m`) | E (`vusDet.m`) |
+|---|---|---|
+| decision rule | unsupervised GMM + likelihood argmax | trained Mahalanobis min-distance (the paper's Eq. (10)) |
+| training | **none** — refits the input signal per utterance | supervised, on TIMIT via `.phn` labels |
+| class identification | heuristic on the fitted components (min `Es`, then min `Nz`) | fixed row order (s, u, v) in the trained `m` |
+| label encoding | {1, 2, 3} = sil, unvoiced, voiced | {−1, 0, 1} = unvoiced, sil, voiced |
+| post-processing | 3-frame median filter on the label contour | none |
+| output | frame labels **and** per-sample labels | frame labels only |
+| status | live (called by `weightedGIF.m`) but uncaptured | orphaned (no caller) |
+
+**This is the fact that makes step 7 define-the-target at the decision layer:**
+a decision oracle would have had to be C or E, and they are two mutually
+inconsistent stages — differing in rule, training, class identification, label
+encoding, and granularity — neither reconciled to the other, only one on any
+live path, and that one uncaptured. There is no canonical decision behaviour to
+reproduce. (The *features* remain capture-and-match precisely because both
+implementations share `vuvMeasurements` unchanged — VUV7's fork-scoping.)
+
+#### The rejection evidence
+
+**C — rejected on determinism.** `gaussmix` is unsupervised EM: component means
+are randomly initialized and EM converges to an init-dependent local optimum, so
+**the same input can yield different component means, and hence different
+labels, on different runs**. That is disqualifying here for a structural reason,
+not a stylistic one: this project's tests are deterministic same-input
+comparisons (golden master at rtol 1e-10…1e-12; synthetic known-value). A stage
+whose output varies run-to-run on identical input **cannot be golden-mastered
+and cannot anchor a regression test at all**. C's identification heuristic is
+independently fragile by its own record: three of the five corpus notes in
+`vusCentroidValues.txt` read "all voiced (no sil)", i.e. a 3-component GMM fit
+to data containing one class, where "lowest mean `Es` = silence" necessarily
+mislabels.
+
+**E — rejected on licensing (decisive) and generalization (backstop).**
+
+- **(b) Licensing, categorical.** E's only parameter source is `trainTimit.m`,
+  which trains on **TIMIT** (LDC-distributed under licence). No trained
+  parameter set is stored in the repo at all, so shipping E would mean
+  re-deriving from TIMIT — re-entering the same chain. **A parameter set whose
+  derivation chain runs through a non-redistributable corpus cannot ship
+  Apache-2.0 regardless of its accuracy.** The argument is about the derivation
+  chain, not the numbers' quality: it is categorical, not empirical, and no
+  accuracy result could answer it. This settles the option actually on the
+  table.
+- **(a) Generalization, the backstop.** It closes the only residual (b) leaves
+  open: a *hypothetical* cleanly-trained model. The project cannot build one
+  anyway — **there is no redistributable corpus with frame-level V/U/S ground
+  truth available to it**, which is why step 7 is define-the-target and why the
+  fixtures are synthetic. **(b) settles the option on the table; (a) shuts the
+  door (b) leaves open.** Ratified in that order.
+
+#### `vusCentroidValues.txt` — what it actually is (correction)
+
+The reasoning history recorded this file as E's shipped trained centroids from
+non-redistributable clinical corpora. **Re-read from source, that attribution is
+wrong in its specifics**, though it does not disturb the decision:
+
+- **Nothing reads it.** No code path in the prior research code opens it;
+  `vusDet.m` takes `m`, `C` as arguments, and their only producer is
+  `trainTimit.m`. It is a lab-notebook record, not a shipped parameter set.
+- **It is structurally incapable of driving E:** it stores weights and 3×5 means
+  only — **no covariances** — and `vusDet.m` requires all three 5×5 class
+  covariances.
+- **It cannot be `trainTimit.m` output:** that function requires TIMIT `.phn`
+  label files and SPHERE `.wav`, and none of the five corpora named is TIMIT.
+  Its structure (a weight triple summing to 1, plus three 5-D means) matches
+  `gaussmix`'s returns, so it is a record of **C's** per-corpus GMM fits.
+- **Five sets, not two**, and the clinical corpora *are* named among them:
+  `MGH` (Sil-Voi-Sil), `InriaData` (all voiced, no sil), `Talromur` (mixed),
+  `vpd` (all voiced, no sil), `OpenGlot II` (all voiced).
+- **Its rows are in arbitrary order.** They are `gaussmix` components, whose
+  ordering is a fit artifact — which is exactly why `voicedSegments.m` carries
+  its "Logic to determine which mixture component is which" block.
+
+**The divergence numbers, re-read rather than transcribed.** The ~7× (`Nz`) and
+~24 dB (`Es`) figures carried in the reasoning history **reproduce exactly —
+7.10× and 23.7 dB — but only under the reading "row 3 = voiced"** (E's `vusDet`
+convention). **That reading is refuted by the file's own content:** it makes
+Talromur's voiced centroid `Nz` = 156.05 (≈2.4 kHz dominant — fricative, not
+voiced) while the same corpus carries a row at `Nz` = 24.03 (≈375 Hz — voiced).
+Under `voicedSegments.m`'s own identification logic — the logic that actually
+consumes `gaussmix` output — the voiced centroids diverge by **2.58× on `Nz` and
+8.9 dB on `Es`**, and Talromur's `Nz` = 156.05 falls out as unvoiced, which is
+internally coherent. **The defensible figures are ~2.6× and ~8.9 dB.**
+
+This softens the backstop's quantitative force and **changes nothing about the
+decision**: (b) is decisive, categorical, and untouched. (a) survives — 2.6× in
+zero-crossings and 8.9 dB in energy across five corpora is still material
+divergence between voiced centroids, and the row-order ambiguity is itself
+evidence that the artifact is a lab record rather than a usable trained model.
+
+- **Status:** documentation gap closed from source; decision unchanged and not
+  re-litigated. Cross-ref: **DESIGN §9 step 7** (the define-the-target framing
+  and the decision-rule-type lean this evidence underpins); **VUV7** (the
+  fork-scoping — features are capture-and-match, only the decision is
+  define-the-target, because C and E are what a decision oracle would have had
+  to be); **VUV11** (the guarded joint route — any return to a multivariate rule
+  needs a redistributable corpus, which E's rejection establishes does not
+  exist); **VUV10** (the paper's decision architecture, which E implements).

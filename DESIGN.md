@@ -276,7 +276,8 @@ inside the hot loops.
    canonical behaviour exists to golden-master against (the two legacy detectors
    were never reconciled and neither is on the captured pipeline), so this is
    *define-the-target*: synthetic known-value fixtures are the oracle, not
-   parity. Like YAGA, the milestone splits — an architecture gate (settled here)
+   parity. The two detectors are identified, and the evidence rejecting each
+   recorded, in `REFERENCE_NOTES.md` VUV15. Like YAGA, the milestone splits — an architecture gate (settled here)
    and a detector sub-gate (the classifier build, next).
 
    *Settled architecture.*
