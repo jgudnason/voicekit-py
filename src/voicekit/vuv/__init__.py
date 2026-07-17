@@ -1,5 +1,6 @@
 """Voiced/unvoiced/silence detection."""
 
+from voicekit.vuv.decision import r1
 from voicekit.vuv.features import (
     FrameFeatures,
     VuvFeaturesConfig,
@@ -12,4 +13,5 @@ __all__ = [
     "VoicingGrid",
     "VuvFeaturesConfig",
     "extract_frame_features",
+    "r1",
 ]

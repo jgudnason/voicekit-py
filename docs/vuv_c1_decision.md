@@ -200,9 +200,10 @@ transfer — see below.
 
 No threshold value is set here. The `r1` threshold's provenance remains as
 ratified (VUV1): derived from the analytic null (`1/√N` — the *textbook* null
-is correct for `r1`, which is exactly what makes it usable per-frame) with a
-dimensionless significance knob, subject to the coloured-noise constraint
-below, and never fitted to D1/D2/D3. Implementation of `r1` and the decision
+is correct for `r1`, which is exactly what makes it usable per-frame; its own
+short derivation is [vuv_r1_null.md](vuv_r1_null.md)) with a dimensionless
+significance knob, subject to the coloured-noise constraint below, and never
+fitted to D1/D2/D3. Implementation of `r1` and the decision
 rule belongs to the decision-rule gate that follows this record.
 
 ## Further research
