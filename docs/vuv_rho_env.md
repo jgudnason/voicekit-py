@@ -88,6 +88,9 @@ referenced, and the argument is checkable independently**):
    of a band-limited recording; the exponential is the finite-lag model at the
    lag actually probed.**
 
+*Known gap in this conversion:* it models the **lag** change and not the
+**bandwidth** change, and the two push opposite ways — see caveat (b) below.
+
 *Assumption check (gate condition 1):* the assumption is a smooth, decreasing,
 cusp-at-zero ACF from a −6 dB/oct-shaped source. **Our fixtures did not supply
 it** — their noises are band-limited *white* constructions (sinc-family,
@@ -165,11 +168,73 @@ ordering discipline), against the admitted range rather than a pinned point:
   voiced fricative at −0.055 is below the entire range and is a stated limit —
   VUV11).
 
+*Chain caveat:* these fixture values are **unconditioned**, while the margin
+they are checked against derives from Table I's **post-Eq. (1)** measurements.
+The comparison is not chain-matched — see caveat (a) below.
+
 **What ships is therefore the range, not a number.** `ρ_env` belongs in
 `VuvConfig` as an **explicit, documented parameter** whose default must be
 named as the convention it is, with this range and this straddle documented
 next to it, so a caller can see exactly what the choice costs and Track B can
 adjudicate it. Recommended, not decided here: the classifier gate takes it.
+
+## Caveats surfaced at the conditioning gate (2026-07-17)
+
+Both were found while surfacing VUV12's conditioning helper — by reading the
+paper's front end against the ratified precondition — after this declaration
+was committed. **Neither moves the declared range**, and neither is a reason to
+revisit it: the range is declared-not-derived and Track-B-adjudicated, so these
+are caveats on its *accuracy*, recorded where the range is stated.
+
+### (a) The conditioned-chain gap: Table I is post-Eq. (1); the precondition does not require conditioning
+
+Table I was measured **after** the paper's Eq. (1) 200 Hz high-pass (its Fig. 1
+order is scale → HPF → block → measurements). VUV12's ratified precondition is
+weaker: *input DC-free and free of sub-speech-band energy* — which does **not**
+require Eq. (1), and which our fixtures **already satisfy** unconditioned (they
+are zero-mean synthetic with no sub-speech-band content). Two consequences:
+
+- **VUV11's and VUV13's fixture measurements stand, unmoved.** They are
+  measurements of precondition-compliant signals; no conditioning is owed on
+  them, so nothing about D2's ~1.0 σ or D3's numbers changes.
+- **But Step 3 above compared a conditioned-chain margin against unconditioned
+  fixture values.** Eq. (1) attenuates our fixtures' fundamentals materially —
+  computed from the paper's coefficients: **D1 (120 Hz) −11.5 dB, D2 (150 Hz)
+  −7.5 dB, D3 (180 Hz) −4.4 dB** (the filter attenuates a low fundamental
+  rather than annihilating it — VUV12 — but 4–12 dB is not nothing). Since
+  `r1`'s voiced value is driven by low-frequency energy concentration,
+  conditioning would move the fixtures' `r1` **downward**, and Step 3's
+  comparison is therefore not chain-matched.
+
+**Whether that movement is large enough to matter is unmeasured, deliberately.**
+The measurement belongs with the conditioning helper (it needs the filter to
+exist) and must be run as a *check*, not as an input to the range: **it must not
+become a reason to revisit ρ_env's declared range.** A range chosen and then
+re-chosen after seeing what the fixtures do under conditioning is the fit this
+document already retracted once (see "The process finding").
+
+### (b) The unmodeled bandwidth term in the fs conversion
+
+The paper's chain is **4 kHz LPF → 10 kHz sampling → 200 Hz HPF**, so Table I is
+measured on **4 kHz-band** speech; our 16 kHz signals carry **0–8 kHz**. Step 1's
+conversion modeled the **lag** change (shorter lag → **higher** ρ) but not the
+**bandwidth** change (more high-frequency content → **lower** ρ). **The two
+partially cancel**, so the declared range **0.53–0.81 may be biased high** by an
+unquantified amount.
+
+The 4 kHz LPF is **not ours to reproduce**: it was an anti-alias filter for
+10 kHz sampling, our input arrives band-limited by its own recording chain, and
+VUV12's ratified scope is the 0 Hz end (J3), not the Nyquist end. So this is a
+gap in the *transfer*, not a missing stage in the *helper*. It joins conditions
+1–3 as a stated limit on how precisely 1976 numbers can speak to a 16 kHz
+detector — which is what Track B adjudicates.
+
+**Linked provenance (recorded here because the coupling is easy to miss):** the
+conditioning helper's cutoff is a config parameter with the paper's values as
+its default. **Changing it leaves the paper's provenance *and* ρ_env's Table-I
+provenance together** — Table I's numbers describe speech conditioned by Eq. (1)
+specifically, so a different corner puts the input outside the chain this
+declaration's supporting constraint was measured on.
 
 ## Gate condition 2 — the accepted error rates, stated
 

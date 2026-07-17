@@ -1049,7 +1049,14 @@ unknown:
   (DC-offset fit). So the reference's `dc_offset` LPC is evidently a
   *substitute for the removed preprocessing*, not an arbitrary quirk — the
   finding that explains why routing `alp1`/`Ep` through `dc_offset=True`
-  (commit 95cb4dd) was required for parity.
+  (commit 95cb4dd) was required for parity. *(The transcription's LPF line
+  carries a latent bug — `butter(4,4000/par.fs)` normalizes by `fs` where
+  MATLAB wants Nyquist, giving a 2 kHz cutoff at 10 kHz rather than the paper's
+  4 kHz. It is commented out and never ran, and the anti-alias LPF is not ours
+  to reproduce; noted so it is not rediscovered as a finding.)* The Eq. (1)
+  transcription itself is **correct and is the established generalization** to
+  arbitrary `fs`: `T → 1/fs` with `a`, `b` fixed in rad/s — the paper's
+  `T = 10⁻⁴` is exactly the sampling period at its own 10 kHz. See VUV12.
 - **Order changed:** the paper says p = 12 "typically"; the MATLAB takes the
   order from its caller and our config uses 16. "The Atal-Rabiner default 16"
   attribution previously in `features.py` was wrong and is corrected (16 is the
