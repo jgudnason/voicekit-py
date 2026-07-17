@@ -43,3 +43,24 @@ See [DESIGN.md](DESIGN.md) for the full rationale. In short:
 - `tests/` (fast, fixture-based, CI-gated) is kept separate from
   `validation/` (corpus-scale accuracy runs against external datasets;
   slow, not part of default CI, output never committed).
+
+## Working method
+
+Three questions to ask **inline, at the moment they apply** — each cheap to ask
+while writing the line, expensive to catch at review. Learned the hard way
+during step 7; they govern all later work. Full rules and their cases in
+[docs/working_method.md](docs/working_method.md):
+
+1. **Was this parameter fixed before its fixture outcome was visible?** Ask when
+   a parameter acquires a default, not at review. A fit finds whatever freedom
+   the structure leaves. Best fix: a required parameter has no default to fit.
+2. **Is this caution evidenced, or merely cited?** A caution the build is about
+   to lean on gets probed against source or measurement before it carries
+   weight. Repeated is not tested.
+3. **Are you reasoning from a summary when the distribution is in hand?** If the
+   exact computation or full distribution is available and cheap, a first-order
+   model or a mean is a guess, not a prediction. (Same rule VUV5/VUV11 impose on
+   scoring: never aggregate, stratify.)
+
+All three are answered the same way — by reading the source or taking the
+measurement, never by re-reasoning from what is already believed.

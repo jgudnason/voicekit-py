@@ -45,6 +45,12 @@ Why rewrite instead of port:
 - **No premature abstraction.** Build what the current milestone needs; don't
   generalize ahead of a second concrete use case.
 
+These are principles for *what* the code is. For *how the work is done* — three
+questions that guard against fitting parameters to fixtures, leaning on cited-
+but-untested cautions, and predicting from summaries when the distribution is in
+hand — see [docs/working_method.md](docs/working_method.md), learned during
+step 7 and governing all later milestones.
+
 ## 3. Core data model
 
 - `Signal`: a small frozen dataclass wrapping `samples: np.ndarray`,
