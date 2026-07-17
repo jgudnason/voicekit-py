@@ -116,11 +116,27 @@ choices span k ∈ [1, 2]:
 | 2.00 | 0.709 | 0.807 | 0.895 | excluded (double-counts VUV13) |
 
 **The admitted range is ρ_env(16k) ∈ [0.53, 0.81], and it straddles the
-breathy case.** Breathy voice at HNR ≈ 0 survives only for **k < 1.032** — the
-very floor of the range. **The fixtures cannot adjudicate within it:** using
+breathy case.** The rows above compare ρ_env against breathy's region *mean*
+(0.625); on that reading breathy survives only for **k < 1.032**, the very
+floor of the range. **The fixtures cannot adjudicate within the range:** using
 D3 to choose k is precisely the forbidden fit, and it is the only instrument
 that would discriminate. So the declaration **declares a range and cannot pin
 the point** — which is the honest terminus of this evidence.
+
+**Correction (measured 2026-07-18, at the classifier assembly — the mean
+reading was too loose).** Breathy is not one value but a per-frame
+distribution: running `detect_voicing` over the region, its `r1` spans
+**[0.593, 0.661]**, mean 0.625. So even at the range's floor (ρ_env = 0.53,
+threshold 0.6027 at α = 0.05) the threshold already cuts breathy's lower tail
+— **0.83 of the region reads voiced there, never all of it** — and at the
+midpoint (0.67) none of it does. Full detection of the region would need
+ρ_env ≤ **0.520**, *outside the declared [0.53, 0.81] range entirely*. The
+user-facing statement is therefore stronger than "straddled": **no admissible
+envelope detects breathy voice at HNR ≈ 0 completely** (ledgered as VUV17).
+**This does not move the range.** The range is declared-not-derived and
+Track-B-adjudicated; a measurement that makes a limit *worse* is no more a
+licence to move a parameter than one that makes it better (the symmetric
+guard to caveat (a)'s). It sharpens what the straddle costs, nothing more.
 
 ### The process finding (why the range is declared and not a point)
 
@@ -159,10 +175,11 @@ ordering discipline), against the admitted range rather than a pinned point:
   every α — a real (if weak) check the range passes, and consistent with
   VUV13's physics for the *mild* instance D3 constructs. Real strong
   aspiration is not covered at any α (VUV13).
-- **D3 breathy (0.625): straddled** — inside the envelope only at the range's
-  floor (k ≲ 1.03), where its margin (0.010 at z = 2) is in any case well
-  inside the threshold's own estimation noise (0.044), and excluded outright
-  above it. Not a pass, not a fail: **undetermined by this evidence.**
+- **D3 breathy (per-frame [0.593, 0.661], mean 0.625): straddled, and never
+  fully inside.** Even at the range's floor the threshold cuts its lower tail
+  (0.83 of the region voiced, measured; see the correction above), and it is
+  excluded outright by the midpoint. Not a pass, not a fail: **undetermined by
+  this evidence, and incompletely detected under every admissible ρ_env.**
 - **D1/D2:** unaffected by ρ_env's location within the range (D1's regions are
   separated by the pre-gate/energy structure, not the colour margin; D2's
   voiced fricative at −0.055 is below the entire range and is a stated limit —

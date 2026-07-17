@@ -1,19 +1,48 @@
-"""Decision-layer statistics for voicing detection.
+"""The voicing decision layer: the ``r1`` statistic and the voicing rule.
 
 This module is **define-the-target**, not capture-and-match: the reference's
-decision stages were rejected at the architecture gate (non-deterministic GMM;
-non-redistributable trained centroids), so there is no MATLAB oracle here and
-**no parity claim attaches to anything in this module**. The feature layer
-(`voicekit.vuv.features`) remains the golden-mastered reproduction of the
-reference; this layer computes what the decision rule needs. Provenance and
-rationale: ``docs/vuv_c1_decision.md`` (the decision record) and
-``docs/vuv_r1_null.md`` (the null derivation behind any threshold).
+decision stages were rejected at the architecture gate (C's non-deterministic
+GMM; E's TIMIT-trained centroids -- see REFERENCE_NOTES VUV15), so there is no
+MATLAB oracle here and **no parity claim attaches to anything in this module**.
+Provenance and rationale: ``docs/vuv_c1_decision.md`` (the decision record),
+``docs/vuv_r1_null.md`` (the null behind the threshold), ``docs/vuv_rho_env.md``
+(the colour margin).
+
+**The classifier never touches the feature layer.** `detect_voicing` takes a
+`Signal`, computes ``r1`` itself, and never calls `extract_frame_features`. A
+reader will assume otherwise -- the five Atal-Rabiner features are the visible,
+golden-mastered thing -- so, stated before it looks like a defect: **the shipped
+detector uses none of the five.** That is the ratified fork-scoping (features are
+capture-and-match reproduction; the decision is define-the-target, VUV7), and
+the feature layer keeps three real jobs:
+
+  1. **reference parity** -- it is the reproduction, gated bit-exact against the
+     MATLAB oracle (VUV7), and that is its own deliverable;
+  2. **substrate for a future multivariate rule** -- VUV11's guarded joint route,
+     if a redistributable corpus ever makes one admissible;
+  3. **it is how ``r1`` exists at all** -- reproducing ``C1`` is what exposed the
+     reference's one-parenthesis broadcast bug against Atal & Rabiner Eq. (3)
+     (VUV7/VUV10), and ``r1`` is that equation computed as published.
+
+**Deliberately not here.** Label smoothing: the reference applies
+``medfilt1(vus,3)`` to its *label sequence* -- the paper's 3-level contour
+smoothing (VUV15). Being post-decision, it is a different question from the
+pre-decision ``C1`` smoothing that VUV8 rejected, so it is **out of scope, not
+foreclosed**: it would need its own provenance for the window, and the minimal
+unit stays minimal. The rule here is strictly per-frame with no post-processing.
 """
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
+
 import numpy as np
 import numpy.typing as npt
+from scipy.special import ndtri
+
+from voicekit.signal import Signal
+from voicekit.vuv.conditioning import check_precondition
+from voicekit.vuv.grid import VoicingGrid
 
 
 def r1(s: npt.NDArray[np.float64], start: int, frame_len: int) -> float:
@@ -52,3 +81,170 @@ def r1(s: npt.NDArray[np.float64], start: int, frame_len: int) -> float:
     y = s[start - 1 : start + frame_len - 1]
     with np.errstate(invalid="ignore"):
         return float((x @ y) / np.sqrt((x @ x) * (y @ y)))
+
+
+@dataclass(frozen=True)
+class VuvConfig:
+    """Config for the voicing rule: ``threshold = rho_env + z(1-alpha)/sqrt(N)``.
+
+    The two terms are kept apart deliberately (``docs/vuv_r1_null.md``): the
+    coloured-noise floor is a **bias**, not estimation noise, so no alpha makes
+    ``z/sqrt(N)`` clear a rho that does not shrink with N. Collapsing them is
+    how a colour margin ends up wearing a quantile's clothes.
+    """
+
+    rho_env: float
+    """Upper bound on the mean ``r1`` of the aperiodic noise you expect --
+    **required, with no default, and that is deliberate.**
+
+    ``rho_env`` is a **deployment property**, not a universal constant: it is a
+    claim about *your* recording environment's noise colour. Atal & Rabiner's
+    Table I constrains it to roughly **0.53-0.81** at 16 kHz but **cannot pin a
+    point within that range** (``docs/vuv_rho_env.md``), so any default shipped
+    here would be arbitrary while reading as recommended -- and every candidate
+    default is compromised in one of two ways: those that admit D3's breathy
+    voice (0.625) sit at its survival boundary, which is precisely the shape of
+    the ``k = 1`` choice that document already retracted; those that exclude it
+    decide your noise environment on your behalf. Requiring it removes the free
+    parameter rather than defending it.
+
+    **How to get it:** measure ``r1`` over a known non-speech region of your own
+    recordings -- that *is* this quantity. (A caller-declared constant is not the
+    adaptive gating VUV1 rejected: the config stays explicit and typed, and the
+    same config on the same input gives the same answer.)
+
+    **Cost, stated:** the detector does not run out of the box.
+    """
+
+    alpha: float = 0.05
+    """Significance level of the estimation term; ``z = ndtri(1 - alpha)``.
+
+    0.05 is **the statistical convention, named as a convention and not derived**
+    -- the white null gives the *form* ``z/sqrt(N)`` (``docs/vuv_r1_null.md``),
+    never the level. Trade it knowingly: alpha is the fraction of in-envelope
+    noise frames that read voiced on estimation noise alone, so at the locked
+    grid's 100 frames/s, **0.05 is ~5 false-voiced frames per second**; 0.01
+    gives ~1.
+
+    It cannot carry the decision, which is structural rather than lucky: with
+    ``rho_env`` required, alpha alone determines no fixture outcome, and across
+    0.05 -> 0.001 it moves the threshold by only ~0.06 against ``rho_env``'s
+    0.28-wide range. This is the knob the fit hid in first (z ~ 6.1, whose
+    6.1/sqrt(512) = 0.270 was numerically D3's measured aspiration colour).
+    """
+
+    grid: VoicingGrid = field(default_factory=VoicingGrid)
+    """The locked 32 ms / 10 ms voicing grid (VUV6). Its own config, not IAIF's."""
+
+    enforce_precondition: bool = True
+    """Run `check_precondition` on the input: raise on DC, warn on sub-band
+    energy (VUV12). ``False`` is the ratified **explicit** opt-out -- it makes
+    "ignored" into "decided", on the record in your code."""
+
+    def threshold(self, fs: float) -> float:
+        """The decision threshold at ``fs``: ``rho_env + z(1-alpha)/sqrt(N)``."""
+        n = self.grid.frame_len(fs)
+        return self.rho_env + float(ndtri(1.0 - self.alpha)) / float(np.sqrt(n))
+
+
+@dataclass(frozen=True)
+class VoicingTrack:
+    """Frame-based voicing track -- the decision layer's output.
+
+    Primary field is `voiced`; the rest is self-describing framing plus two
+    diagnostic channels. **`undefined` and `floor_gated` are diagnostics, not a
+    third label**: the label domain stays binary (architecture gate), kept
+    wideable for a later silence consumer.
+
+    **Two pre-gate fields, where the architecture gate said "a field"** -- an
+    extension, with its reason, so it does not read as drift. VUV1's pre-gate has
+    two jobs of different standing, and they need different observability:
+    `undefined` is J1 (remedial: the statistic could not be computed) and
+    `floor_gated` is J2 (principled: below the recording-chain floor, landing as
+    a separable follow-up). A single combined field could not express the ratified
+    **anti-creep test** -- "the floor guard must never fire on any D1 frame" --
+    without special-casing frame 0, which J1 always flags. Two fields also mean
+    **no semantic change when J2 lands**: `floor_gated` ships all-``False``
+    ("no floor guard configured yet") and the anti-creep test can be written now,
+    passing until a guard creeps. The guard exists before the thing it guards.
+    And a later S/U/V widening wants J2 (silence), not J1 (a degenerate frame) --
+    conflating them would hand the widening the wrong signal.
+
+    Invariant: ``voiced`` implies neither ``undefined`` nor ``floor_gated``.
+    """
+
+    voiced: npt.NDArray[np.bool_]
+    undefined: npt.NDArray[np.bool_]
+    floor_gated: npt.NDArray[np.bool_]
+    fs: int
+    frame_len: int
+    hop: int
+
+    @property
+    def n_frames(self) -> int:
+        return len(self.voiced)
+
+    @property
+    def frame_centers(self) -> npt.NDArray[np.float64]:
+        """0-based centre sample of each frame -- derived, not stored, and by the
+        same arithmetic as `VoicingGrid.frame_centers` (its single source)."""
+        k = np.arange(self.n_frames)
+        return np.asarray(k * self.hop + (self.frame_len - 1) / 2, dtype=np.float64)
+
+
+def detect_voicing(signal: Signal, config: VuvConfig) -> VoicingTrack:
+    """Per-frame voiced/non-voiced decision on ``signal``. Returns a `VoicingTrack`.
+
+    ``config`` is required, not optional: `VuvConfig.rho_env` has no default, so
+    the operating envelope must be declared rather than inherited.
+
+    The rule, per frame: **voiced iff ``r1 > rho_env + z(1-alpha)/sqrt(N)``.**
+    Strictly per-frame -- no smoothing, no post-processing (see the module
+    docstring). Frames whose ``r1`` is undefined are non-voiced and flagged
+    `undefined` (VUV1's J1 finiteness predicate, a fixed behaviour and not a
+    knob: asserting *voiced* from an uncomputable statistic would claim
+    periodicity from no evidence). Two frames are undefined: any zero-energy
+    frame (0/0 -- ``r1`` inherits this, boundedness does not fix zero energy),
+    and **frame 0**, which has no boundary sample. Frame 0 stays in the track --
+    dropping it would desynchronise the track from the grid.
+
+    Trailing samples that do not fill a frame are dropped, by
+    `VoicingGrid.frame_centers` -- so every frame here is a full frame.
+
+    Input must meet the `voicekit.vuv` precondition; this runs the check
+    (raising on DC, warning on sub-band energy) unless
+    ``config.enforce_precondition`` is False.
+    """
+    check_precondition(signal, enforce=config.enforce_precondition)
+
+    s = np.asarray(signal.samples, dtype=np.float64)
+    fs = float(signal.fs)
+    frame_len = config.grid.frame_len(fs)
+    hop = config.grid.hop(fs)
+    n = len(config.grid.frame_centers(len(s), fs))
+    threshold = config.threshold(fs)
+
+    voiced = np.zeros(n, dtype=np.bool_)
+    undefined = np.zeros(n, dtype=np.bool_)
+    # J2's floor guard is a separable follow-up: no frame is floor-gated yet.
+    floor_gated = np.zeros(n, dtype=np.bool_)
+
+    for k in range(n):
+        start = k * hop
+        if start < 1:
+            undefined[k] = True  # frame 0: no boundary sample for the lag
+            continue
+        value = r1(s, start, frame_len)
+        if not np.isfinite(value):
+            undefined[k] = True  # zero-energy frame: r1 is 0/0
+            continue
+        voiced[k] = value > threshold
+
+    return VoicingTrack(
+        voiced=voiced,
+        undefined=undefined,
+        floor_gated=floor_gated,
+        fs=signal.fs,
+        frame_len=frame_len,
+        hop=hop,
+    )

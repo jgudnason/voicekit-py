@@ -1531,3 +1531,61 @@ not "nothing happened".
 - **Status:** finding recorded; ruling unchanged, revisitable at Track B with
   this as its input. Cross-ref VUV12 (the ruling and its named cost),
   `tests/synthetic/README.md` (the H-series predictions and outcomes).
+
+### VUV17. The shipped detector's known limits, measured
+
+VUV11's second forward requirement, due now that the classifier exists: the
+limits become **documented properties of a shipped artifact**, not analysis.
+Consolidated here so a user reads one place; VUV11, VUV13 and
+[docs/vuv_rho_env.md](docs/vuv_rho_env.md) carry the reasoning and are not
+restated. Measured with `detect_voicing` on the committed fixtures
+(2026-07-17), stratified per region — never aggregate (VUV5/VUV11), because an
+aggregate score would hide precisely these.
+
+- **Voiced frication reads non-voiced** (VUV11's C′). D2's voiced fricative
+  measures `r1` = −0.055, below every threshold the declared `rho_env` range
+  admits: **measured 0.00 voiced**, against `voiced_modal` 1.00 and
+  `unvoiced_fricative` 0.00. A fixed threshold on a lag-1 statistic
+  systematically labels voiced frication non-voiced. Falsifier unchanged
+  (Track B, real voiced fricatives at VFR ≤ 0 dB against EGG).
+- **Strong aspiration is not covered at any α** (VUV13). D3's *mild* instance
+  (band-limited, `r1` = 0.271) is correctly rejected at every admissible
+  `rho_env` (measured 0.00 at 0.53/0.67/0.81) — but that is the fixture being
+  mild, not the limit being absent: aspiration is acoustically a voiceless
+  vowel, so its ρ approaches the co-articulated vowel's and no threshold
+  excludes it.
+- **No admissible `rho_env` detects breathy voice at HNR ≈ 0 completely.**
+  This is the user-facing limit, and it is *stronger* than the "straddle" the
+  earlier record described — stated first because it is what a caller needs.
+  Measured at the classifier assembly: breathy's `r1` is a per-frame
+  distribution spanning **[0.593, 0.661]** (mean 0.625), so even at the range's
+  **floor** (ρ_env = 0.53, threshold 0.6027) the threshold cuts its lower tail
+  — **0.83 of the region reads voiced there, never all of it** — and at the
+  **midpoint** (0.67) **none** does. Full detection of the region would need
+  ρ_env ≤ **0.520**, *outside the declared [0.53, 0.81] range entirely*.
+  - *Character of the limit:* with `rho_env` required and defaulted nowhere,
+    how much of breathy is recovered is **a property of the caller's
+    configuration**, not a fixed limit of the detector — the required
+    parameter earning its cost — but the ceiling above (never complete, at any
+    admissible envelope) holds regardless of the caller.
+  - *Provenance correction:* the earlier straddle read breathy against its
+    region **mean** (0.625) and concluded it survives for `rho_env` < ~0.537.
+    That was too loose — the per-frame span is what governs. Same shape as
+    ρ_env caveat (a)'s missed prediction: reasoning from an aggregate where the
+    per-frame distribution was what mattered. Corrected in place in
+    [docs/vuv_rho_env.md](docs/vuv_rho_env.md).
+  - *Does not move the range:* declared-not-derived, Track-B-adjudicated; a
+    measurement that makes a limit worse is no more a licence to move a
+    parameter than one that makes it better.
+- **Hum warns, then misclassifies** (VUV12's named cost, now observed). H2 —
+  hum with no phonation, ground-truth N — warns and is then labelled **voiced
+  throughout**. Hum is genuinely periodic, so no threshold at any α rejects it;
+  only conditioning does, and `condition()` returns it to 0.00 voiced. DC by
+  contrast **raises** (H1) and the detector refuses.
+- **D1's decay tail is lost by design** (VUV5). `voiced_decay` runs SNR
+  30 → −2 dB labelled V throughout: measured 0.92 voiced at the midpoint,
+  0.75 at 0.81. A detector *must* lose the low-SNR end — asymptotic-in-the-tail,
+  provable only under SNR-stratified scoring, not a defect.
+- **Status:** documented properties of the shipped detector. Binds the scorer
+  (VFR/HNR/SNR-stratified reporting) and any user-facing docs. Cross-ref VUV5,
+  VUV11, VUV12, VUV13, docs/vuv_rho_env.md.

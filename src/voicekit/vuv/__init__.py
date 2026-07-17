@@ -36,7 +36,7 @@ from voicekit.vuv.conditioning import (
     check_precondition,
     condition,
 )
-from voicekit.vuv.decision import r1
+from voicekit.vuv.decision import VoicingTrack, VuvConfig, detect_voicing, r1
 from voicekit.vuv.features import (
     FrameFeatures,
     VuvFeaturesConfig,
@@ -49,9 +49,12 @@ __all__ = [
     "FrameFeatures",
     "PreconditionReport",
     "VoicingGrid",
+    "VoicingTrack",
+    "VuvConfig",
     "VuvFeaturesConfig",
     "check_precondition",
     "condition",
+    "detect_voicing",
     "extract_frame_features",
     "r1",
 ]
