@@ -60,6 +60,18 @@ component, not reproduction facts.
 back to this file (e.g. `# see REFERENCE_NOTES.md: waveform window +1`) rather
 than re-explaining the quirk, so the rationale lives in one place.
 
+**Naming & provenance convention** (authority: CLAUDE.md "Provenance"): the prior
+MATLAB research code — including the `vsaTools` working tree — is private and
+unpublished, so this file refers to its files generically ("the reference
+weighted-GIF driver", "the reference GOI-selection step"), never by filename. It
+is the private *filename* that is withheld, not the *method*: published
+algorithms, and methods being published as part of voicekit, are described freely
+and in full mechanism. Published prior work stays named (VOICEBOX and its
+`v_`-functions, the DYPSA method, papers), and voicekit's own API names may echo
+the MATLAB names. Entries written before 2026-07-19 may still carry private
+filenames; a genericization sweep (filenames only, method content untouched) is
+a ledgered follow-up.
+
 **Status field** lets an entry later flip from *reproduced* to *corrected*: once
 corpus-accuracy numbers (APLAWD / OpenGlot) exist, a correction candidate may be
 changed to deliberately diverge from the reference — at which point its status
@@ -1808,7 +1820,8 @@ not folded into it.**
   Per rule 1 that policy must be settled **before** any fixture shows which choice keeps
   the most cycles green. Characterized (not asserted-for-parity) by
   `tests/test_lpc.py::TestWeightedRankDeficiency`.
-- **Status:** open — behaviour established, policy deferred to the closed-phase gate.
+- **Status:** decided at the closed-phase gate (second round) — skip-frame/mask; see
+  GIF5. The characterization above stands unchanged.
   Cross-ref C8, GIF2 (the interval-restricted alternative reaches this too).
 
 ### GIF4. Two-revision Gaussian weighting: current `Toolbox/weightsForLP.m` is authoritative; `weightsForLP_old.m` is the superseded predecessor (DESIGN §5's missing `-0.5`, located)
@@ -1859,3 +1872,188 @@ revision.
 - **Status:** authority established (current authoritative, old superseded); `-0.5`
   example located. Ledgered ahead of the Gaussian method implementation; the capture
   target is the current `Toolbox/weightsForLP.m`.
+
+### GIF5. Rank-degeneracy policy decided: skip-frame — a deficient frame's cycles are masked NaN. A named departure where the reference has no defined value
+
+Decided 2026-07-19 at the closed-phase gate (second round), from source and charter.
+Rule-1 discipline: no candidate policy was run against any fixture; the only fixture
+numbers consulted are the degeneracy-*frequency* measurements (GIF3 and the gate's
+mask-support counts), which are policy-independent — the same frames are deficient
+under every candidate policy — and no surviving-cycle count was computed for any
+policy.
+
+- **The policy.** When a closed-phase frame's weighted normal equations are
+  rank-deficient (nonzero-weight support `< nar+1` on the `dc_offset` path is the
+  documented sufficient condition; detection must be explicit, e.g. the solver's
+  reported rank), the frame's AR is not used. The cycles that frame inverse-filters
+  are masked ``NaN`` through the existing ``(mask, subset, value)`` convention
+  (`apply_cycle_mask` / `apply_voicing_mask`, ``value = nan``), with the mask
+  observable (a reason, not just a silent NaN), matching `apply_voicing_mask`'s
+  precedent. Detection is per **frame** (the solve unit); propagation is to the
+  cycles that frame filters — the degeneracy is not a per-cycle property.
+- **Reproduce-the-reference is disqualified: there is no defined value to reproduce.**
+  `v_lpccovar`'s degenerate path is bare — `pp=min(p,nc-d0)` keys on the frame
+  length, never on effective support, and the weighted solve is
+  `aa = (dm\sc).'` (v_lpccovar.m:116 dc path, :131 plain). The file contains no rank
+  handling, no `pinv`, no warning of its own (grep: zero hits for
+  rank/warning/pinv/cond); the rank-deficiency warning GIF3 observed is MATLAB
+  `mldivide`'s own console warning. On a rank-deficient system `\` returns a *basic
+  solution*, and **which** basic solution is an artifact of the pivoted-QR
+  implementation (pivot order, LAPACK build) — neither the reference source nor
+  MATLAB specifies it, so it is not stable-by-contract even across MATLAB releases.
+  "Parity" here would mean writing a pivoted-QR solve specifically to reproduce an
+  unspecified solver artifact — reintroducing the silent-numerical-drift failure
+  DESIGN §5 names as the project's motivating example. There is a reference
+  *solver's incidental output*, not a reference *value*.
+- **Guard-and-raise is rejected.** One deficient frame would kill a recording
+  end-to-end, and the gate measurement shows the case is live at ordinary F0
+  (1/33 frames on `vowel_glide_16k`, support 12 < 17, driven by early GOI
+  candidates 18–19 samples after the GCI against ``cpDelay+1 = 15`` zeroed) — so it
+  is common on realistic high-pitch input, not a cold edge. An API that raises on
+  any recording containing one short closed phase is unusable without every caller
+  wrapping it. (C8's raise is a different situation: frame-shorter-than-order is a
+  caller-configuration error, not a data-dependent property of healthy input.)
+- **NaN-mask is the codebase's existing representation for exactly this.** A
+  rank-deficient frame is genuinely uncomputable — the closed phase does not carry
+  the information to determine the AR — and the NaN-for-uncomputable line is already
+  drawn in `apply_voicing_mask`'s docstring
+  (`src/voicekit/features/extract.py:90-95`): "``NaN``, not ``0.0``: a non-voiced
+  cycle is *uncomputable* (no glottal source), which has no reference value — unlike
+  the O1==0 degenerate branch, whose ``0.0`` is the reference's own defined output."
+  Rank deficiency falls on the NaN side of that line for the same reason: no
+  reference value exists.
+- **Define-the-target, not reproduce-and-quarantine.** This is not a divergence from
+  defined reference behaviour, because there is no defined value to diverge from;
+  choosing skip-frame designs a new stage rather than correcting a reproduced quirk.
+  Where the reference **is** well-defined the parity discipline binds unchanged
+  (GIF2's full-frame + 0/1 mask lock); where it is not, the departure is deliberate
+  with its reasoning ledgered here — the same decision shape as `r1` (VUV14) and
+  GIF2's deferred alternative. Not filed under "Divergences from the reference":
+  that section catalogues departures from *defined* reference behaviour justified by
+  accuracy results; this is a policy for a case the reference leaves unspecified. If
+  item-9 corpus evidence ever favours another treatment (e.g. order reduction on
+  effective support), that is a reopen-with-evidence, like GIF2's alternative.
+- **Status:** decided — skip-frame/NaN-mask. GIF3's characterization stands;
+  implementation lands with the closed-phase method (after GIF6's exposure commit).
+
+### GIF6. `GciResult` gains `goi_candidates`: the reference GOI-selection step's input exposed, not recomputed (API shape pinned; not yet implemented)
+
+Decided 2026-07-19 at the closed-phase gate (second round), from the gate's Q2
+finding. The reference closed-phase mask does **not** consume the detector's
+DP/postGOI ``goi`` sequence (the one `GciResult.goi` reproduces): the reference
+weighted-GIF driver discards that output and rebuilds a gap-free GOI sequence with
+a separate **GOI-selection step** — a candidate-selection method due to the
+maintainer (unpublished; being written up as part of voicekit — priority note,
+2026-07-19). Its mechanism: for each cycle, compute an a-priori opening point
+``coc = gci + ceil(APOP·dgci)`` (``APOP = voicebox('dy_cpfrac') = 0.3``, the
+presumed closed-phase fraction; ``dgci`` the cycle length, the last cycle extended
+zero-order); among the GOI **candidates** strictly inside the cycle, pick the one
+minimising the squared distance to ``coc``; when the cycle has no candidate, fall
+back to ``coc`` itself — so the output is total (never NaN). Its input is the GOI
+candidate set, not the DP-selected openings, and the two GOI sequences are
+materially different: they differ on 55/55 cycles (median |Δ| = 28 samples) on
+`vowel_f0100_16k`, 9/62 on `vowel_glide_16k`, 0/66 (coincidentally) on
+`vowel_f0120_8k`. So a NaN-fill of `GciResult.goi` cannot reproduce the reference
+mask. The reconciliation is an API exposure, not a fill.
+
+- **Expose, don't recompute.** The set the GOI-selection step needs is the
+  detector's leftover set — candidate positions minus the DP-selected
+  (pre-refinement) GCIs, a setdiff the reference detector computes **before** GCI
+  refinement — which `detector.py:170–172` already computes
+  (``leftover = ~np.isin(positions_1based, gci_dp)``) and currently discards after
+  the GOI DP uses it. The field returns that computation. A second copy of the
+  setdiff in `gif/` would be the two-copies-of-a-convention hazard this project
+  exists to prevent; consuming what `yaga()` returns — never re-running detection —
+  is the returned-not-accepted discipline `YagaResult.residual` established.
+  Confirmed single-source: the candidate-vs-`gci_dp` setdiff exists at exactly one
+  site (`detector.py:170`), and `GciResult` has exactly one construction site
+  (`detector.py:270`).
+- **Field shape.** ``goi_candidates: npt.NDArray[np.int64]`` — 0-based, sorted
+  positions of the assembled candidates not selected as GCIs by the DP (the
+  positions column of the reference's candidate matrix, − 1). **Positions only.**
+  The reference carries a second column alongside the positions (the zero-crossing
+  flag), but the GOI-selection step provably never consumes it: its in-cycle window
+  (candidates strictly between ``gci`` and ``gci + dgci``) linear-indexes the whole
+  N×2 matrix, and a flag value ∈ {0,1} can never exceed a 1-based ``gci ≥ 1``
+  (fixture corroboration: flag column ∈ {0,1} on all three captures, min gci 274).
+  Carrying it would be decorative.
+- **`gci_dp` is NOT exposed.** The GOI-selection step takes the refined public
+  GCIs (the driver passes the detector's post-refinement output — the sequence
+  `GciResult.gci` already is) plus the candidate set. `gci_dp`'s only role is the
+  setdiff, which stays internal to the detector.
+- **`GciResult.goi` is unchanged** — NaN-for-absent stays the honest per-cycle
+  opening estimate. The docstring must state why both fields exist so neither reads
+  as redundant: ``goi`` = the detector's per-cycle opening estimate (what feature
+  timing consumes); ``goi_candidates`` = the raw candidate set from which the
+  closed-phase weighter reconstructs the reference's gap-free GOI sequence (the
+  GOI-selection step above: nearest candidate to ``coc``, a-priori ``coc`` fill
+  when a cycle has none). They are different objects on 55/55 cycles of the 16 kHz
+  fixture.
+- **setdiff-semantics nuance.** MATLAB `setdiff` dedups and sorts; `np.isin` keeps
+  duplicates. No duplicate candidate positions occur on any fixture (241/237/207
+  candidates, all unique; the isin-kept set equals the captured ``ret_goic[:,0]``
+  exactly, content and order, on all three), but the guard test must assert the
+  field equals ``ret_goic[:,0] − 1`` per fixture — which pins setdiff semantics if a
+  duplicate position (a zero-crossing and a projected candidate on the same sample)
+  ever arises; dedup at the field construction if so.
+- **Commit sequencing (hygiene).** This is an additive change to an
+  already-committed frozen result type. It lands as its **own commit, green in
+  isolation, before any `gif/` code** — not bundled into the first closed-phase
+  commit. Guard-test-first: the commit carries (a) a test proving existing YAGA
+  output (``gci``, ``goi``, ``residual``) is bit-identical before/after the field is
+  added, and (b) the golden assertion ``goi_candidates == ret_goic[:,0] − 1`` on all
+  three fixtures. Besides the dataclass, the only production line that changes is
+  the single construction site.
+- **Status:** shape pinned; implementation pending (own commit, guard-test-first,
+  before `gif/`).
+
+### GIF7. Step-8 capture shape: native-fs method capture; the reference's fs=20000 resample front-end is a documented non-target
+
+Decided 2026-07-19 at the closed-phase gate (second round).
+
+- **The fork.** The reference weighted-GIF driver hardcodes ``fs = 20000`` and
+  resamples every input (``sp = resample(sp,fs,fs_sp)``) before detection *and*
+  weighting, so every reference constant is a 20 k instantiation and reference
+  GCIs/GOIs live on the 20 k grid. An end-to-end capture through the driver would
+  golden-master the whole pipeline but requires (a) reproducing MATLAB's polyphase
+  `resample` — a sizeable convention of its own — and (b) YAGA validity at 20 k,
+  which is not established (YAGA is golden-mastered at 8 k/16 k); a native-fs run
+  structurally cannot match such a capture. The method layer, by contrast, is
+  fs-parametric from source: the weighted-LP solve wrapper —
+  ``(sp, gci, goi, fs, par)`` — overrides ``wpar.fs = fs`` with its own fs argument
+  (the reference parameter file's ``wpar.fs = 20000`` is dead on this path), and
+  every constant is a formula in fs (``nar = ceil(fs/1000)``,
+  ``cpDelay = round(0.9e-3·fs)``, ``maxSamplesPerCycle = ceil(fs/minF0)``,
+  ``wl/inc = round(fs·{0.032, 0.016})``).
+- **Ratified: native-fs method capture.** Drive the weighted-LP solve wrapper and
+  weighting constructor (and the GOI-selection step, GIF6) directly at the fixture
+  fs with the fixture GCI + candidate sets —
+  the same shape as YAGA's own validation (native fs, instrumented capture). What
+  step 8 ports is the weighted-LP method; the 20 k resample is the reference's I/O
+  framing, not the algorithm.
+- **GIF6 consistency.** The mask consumes the GOI-selection step's output (built
+  from the refined GCIs plus the candidate set), so the capture needs the candidate
+  set at the capture fs. The captured ``ret_goic`` is already native-fs (the YAGA
+  captures ran the reference detector at 8 k/16 k), and `goi_candidates` is
+  produced at whatever fs `yaga()` ran — the exposure supplies candidates at the
+  method-capture fs by construction. Consistent.
+- **What this shape does NOT validate (F1-style, deliberate).**
+  - MATLAB ``resample(sp, 20000, fs_sp)`` — never reproduced, never asserted.
+  - The 20 kHz operating point itself: ``nar = 20``, ``cpDelay = 18``
+    (``round(18.0)``, exact), ``maxSamplesPerCycle = 400``, ``wl = 640`` are never
+    exercised — the *formulas* are validated only at their 8 k/16 k instantiations
+    (``nar = 8/16``, ``cpDelay = 7/14`` — where the round-not-ceil convention is
+    live: 7.2→7, 14.4→14).
+  - The driver's pipeline composition (resample → GCI/GOI detection → GOI
+    selection → VUS gate → weighted-LP solve → save layout).
+- **Item-9 interaction (documented, not resolved).** Reference outputs on corpus
+  audio are produced at the 20 k operating point. When item-9's scoring harness
+  compares methods, a native-fs voicekit run differs from the reference by
+  *operating point*, not only by port fidelity. Item 9 must then either (i) give
+  voicekit a 20 k-resample front-end for comparison runs — a define-the-target
+  decision to take then, with its own resample-fidelity question — or (ii) score
+  each system at its own operating point and document the difference. Until then
+  the resample and the 20 k operating point are the step-8 analogue of F1's
+  fixture limitation: a named, deliberate capture gap, not an oversight.
+- **Status:** capture shape decided — native-fs method capture; the non-targets
+  above are the ledgered gap.
