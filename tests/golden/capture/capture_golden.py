@@ -2,8 +2,8 @@
 
 Steps, for each committed fixture under ``data/fixtures/``:
 
-1. Instrument the published ``vsaTools/YAGA/dypsagoi.m`` (see ``instrument.py``)
-   into a scratch directory that shadows the reference on the MATLAB path.
+1. Instrument the reference GCI/GOI detector (see ``instrument.py``) into a
+   scratch directory that shadows the reference on the MATLAB path.
 2. Run the detector twice via ``capture_one.m``: once with ``opt=''`` (the
    canonical GCIs/GOIs) and once with ``opt='v'`` (to populate the DP
    per-candidate cost decomposition, which the ``'v'`` path computes).
@@ -11,9 +11,9 @@ Steps, for each committed fixture under ``data/fixtures/``:
    plus a single ``wfilters_bior15.npz`` convention reference.
 
 Nothing here is run in CI. It requires MATLAB + Wavelet/Signal toolboxes and
-local checkouts of VOICEBOX and vsaTools; paths are taken from environment
-variables (documented in ``tests/golden/README.md``) with sensible local
-defaults, never hardcoded into committed algorithm code.
+local checkouts of VOICEBOX and the reference tree; paths are taken from
+environment variables (documented in ``tests/golden/README.md``), never
+hardcoded and with no silent default -- an unset variable is a clear error.
 
 Usage:
     python tests/golden/capture/capture_golden.py
@@ -30,6 +30,7 @@ import make_inputs
 import numpy as np
 import scipy.io
 from instrument import apply as instrument_apply
+from refpaths import require_reference_dir
 
 REPO = Path(__file__).resolve().parents[3]
 FIXTURES = REPO / "data" / "fixtures"
@@ -41,8 +42,8 @@ MATLAB = os.environ.get(
 VOICEBOX = Path(
     os.environ.get("VOICEKIT_VOICEBOX", Path.home() / "Documents/Current/voicebox/voicebox")
 )
-VSATOOLS = Path(
-    os.environ.get("VOICEKIT_VSATOOLS", Path.home() / "Documents/Current/voicekit/vsaTools")
+REFERENCE = require_reference_dir(
+    "VOICEKIT_REFERENCE_DIR", "the reference tree root providing the GCI/GOI detector"
 )
 
 FIXTURE_NAMES = ["vowel_f0100_16k", "vowel_glide_16k", "vowel_f0120_8k"]
@@ -82,7 +83,7 @@ def run_matlab(
     override_arg = f"'{override_mat}'" if override_mat is not None else "''"
     cmd = (
         f"addpath('{VOICEBOX}');"
-        f"addpath('{VSATOOLS}');addpath('{VSATOOLS}/YAGA');"
+        f"addpath('{REFERENCE}');addpath('{REFERENCE}/YAGA');"
         f"addpath('{scratch}','-begin');"  # instrumented copy shadows reference
         f"addpath('{Path(__file__).parent}');"
         f"capture_one('{fixture_wav}','{out_mat}','{opt}',{override_arg});"
@@ -103,9 +104,12 @@ def to_npz_value(name: str, value: object) -> np.ndarray:
 
 
 def main() -> None:
-    ref = VSATOOLS / "YAGA" / "dypsagoi.m"
+    ref = REFERENCE / "YAGA" / "dypsagoi.m"
     if not ref.exists():
-        raise SystemExit(f"reference not found: {ref} (set VOICEKIT_VSATOOLS)")
+        raise SystemExit(
+            f"reference detector not found at {ref}; VOICEKIT_REFERENCE_DIR "
+            f"({REFERENCE}) does not look like the reference tree."
+        )
     GOLDEN.mkdir(parents=True, exist_ok=True)
 
     with tempfile.TemporaryDirectory() as tmp:

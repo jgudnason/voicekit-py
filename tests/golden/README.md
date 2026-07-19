@@ -94,7 +94,9 @@ never hardcoded in committed algorithm code:
 - `VOICEKIT_MATLAB` — MATLAB executable (default: local R2024b app path).
 - `VOICEKIT_VOICEBOX` — VOICEBOX directory (provides `lpcauto`, `lpcifilt`,
   `voicebox`/`v_voicebox` parameter store).
-- `VOICEKIT_VSATOOLS` — reference-tree directory (provides the IAIF and GCI/GOI-detector references).
+- `VOICEKIT_REFERENCE_DIR` — reference-tree root (provides the IAIF, GCI/GOI-detector,
+  and voice-feature references). No default: unset is a clear error, never a silent
+  fallback to a stale checkout.
 
 ```
 python tests/golden/capture/make_inputs.py     # only to regenerate inputs

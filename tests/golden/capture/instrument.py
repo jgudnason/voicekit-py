@@ -1,6 +1,6 @@
 """Build an instrumented copy of the reference DYPSA GCI/GOI detector.
 
-The published reference (``vsaTools/YAGA/dypsagoi.m``, GPL, jointly
+The reference GCI/GOI detector (the DYPSA method, GPL, jointly
 copyrighted Kounoudes/Gudnason/Naylor/Brookes) returns only its final
 results; the per-stage intermediates we need as golden masters
 (wavelet detail rows, multiscale product, group-delay function,
@@ -85,7 +85,7 @@ def _check_reference(reference_bytes: bytes) -> None:
     digest = hashlib.sha256(reference_bytes).hexdigest()
     if digest != REFERENCE_SHA256:
         raise ValueError(
-            "reference dypsagoi.m does not match the pinned revision "
+            "the reference detector does not match the pinned revision "
             f"(sha256 {digest} != {REFERENCE_SHA256}). The line offsets in "
             "this file are stale; re-derive them with derive_offsets() and "
             "update REFERENCE_SHA256/REFERENCE_LINES before re-capturing."
@@ -127,7 +127,7 @@ def main() -> None:
     import argparse
 
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("reference", type=Path, help="path to published vsaTools dypsagoi.m")
+    parser.add_argument("reference", type=Path, help="path to the reference detector .m file")
     parser.add_argument("out", type=Path, help="path to write instrumented copy")
     args = parser.parse_args()
 

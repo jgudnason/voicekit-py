@@ -1,8 +1,8 @@
 function capture_features(fixture_npz_dir, out_mat, name)
 %CAPTURE_FEATURES Run the reference feature extraction on one fixture, save outputs.
 %
-%   Black-box capture of vsaTools/extractVoiceFeatures.m public returns (and the
-%   derived flow u, per vsaTools/testSingleFile.m). No instrumentation: the
+%   Black-box capture of the reference feature-extraction pipeline's public
+%   returns (and the derived flow u, per the reference single-file harness). No instrumentation: the
 %   function is called directly and its outputs saved. Inputs (udash, gci, fs)
 %   come from the committed YAGA golden fixture, read here from a small .mat the
 %   Python driver writes.
