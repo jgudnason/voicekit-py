@@ -81,11 +81,24 @@ class GciResult:
     to fill). It is ``float`` so absence is ``NaN`` rather than a poison index;
     a consumer must check ``np.isnan(goi[i])`` before using it. ``candidates`` is
     the assembled, classified candidate set the DP chose from.
+
+    ``goi`` and ``goi_candidates`` are two DIFFERENT objects and must not be
+    collapsed. ``goi`` is the detector's per-cycle opening *estimate* -- what
+    feature timing consumes -- from the DP/postGOI pairing, NaN-for-absent.
+    ``goi_candidates`` is the raw set of GOI *candidate* positions (0-based,
+    sorted int): the assembled candidates not DP-selected as GCIs. It is the
+    input the closed-phase weighter reconstructs the reference's own gap-free
+    GOI sequence from (a nearest-candidate-to-a-priori-point selection step, not
+    the pairing ``goi`` records), so the closed-phase mask cannot be built from
+    ``goi``. The two sequences genuinely diverge -- on 55/55 cycles (median 28
+    samples) of the 16 kHz fixture -- so a consumer must not substitute one for
+    the other. See REFERENCE_NOTES GIF6.
     """
 
     gci: npt.NDArray[np.int64]
     goi: npt.NDArray[np.float64]
     candidates: CandidateSet
+    goi_candidates: npt.NDArray[np.int64]
 
 
 @dataclass(frozen=True)
@@ -160,25 +173,33 @@ def _detect_goi_raw(
     fnwav: npt.NDArray[np.float64],
     fs: float,
     config: "YagaConfig",
-) -> npt.NDArray[np.float64]:
-    """Raw GOI sequence (matching the reference's ``goi``, sentinels included).
+) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.int64]]:
+    """Raw GOI sequence plus the GOI candidate set it was selected from.
 
     GOI candidates are the assembled candidates *not* chosen as GCIs; the same DP
     forward pass and traceback run on them with the causal closed-phase cost
     ``cencost`` (where GCI used the anticausal ``aencost``). Then the ``postGOI``
     pairing runs, unless ``goi_postprocess`` is off.
+
+    Returns ``(raw_goi, goi_candidates)``. ``goi_candidates`` is the leftover
+    candidate set (0-based, sorted) -- the single ``setdiff`` computed here and
+    exposed on `GciResult` so the closed-phase weighter consumes it rather than
+    recomputing it (see REFERENCE_NOTES GIF6).
     """
     leftover = ~np.isin(positions_1based.astype(np.int64), np.asarray(gci_dp, np.int64))
     idx = np.nonzero(leftover)[0]
-    goic = positions_1based[idx]
+    goic = positions_1based[idx]  # 1-based candidate positions
+    goi_candidates = (goic - 1).astype(np.int64)  # 0-based; the exposed setdiff
     frob_cost = frobenius_energy_cost(goic.astype(np.int64) - 1, fnwav, fs, config.frobenius)
     result = forward_pass(
         goic, flags[idx], residual, phase_slope[idx], frob_cost, cencost[idx], fs, config.dp
     )
     goi_dp = traceback(result, goic, fs, config.dp, config.traceback_force_penultimate)
     if config.goi_postprocess:
-        return _goi_postprocess(gci_refined, goi_dp)
-    return np.sort(goi_dp.astype(np.float64))
+        raw_goi = _goi_postprocess(gci_refined, goi_dp)
+    else:
+        raw_goi = np.sort(goi_dp.astype(np.float64))
+    return raw_goi, goi_candidates
 
 
 def _align_goi_to_cycles(
@@ -255,7 +276,7 @@ def yaga(signal: Signal, config: YagaConfig | None = None) -> YagaResult:
     # GOI: the leftover candidates through the same DP with the causal closed-phase
     # cost, then the reference's pairing. The raw goi (with sentinels) is cleaned to
     # the per-cycle representation for the public result.
-    raw_goi = _detect_goi_raw(
+    raw_goi, goi_candidates = _detect_goi_raw(
         positions_1based,
         candidates.is_zero_crossing.astype(np.int64),
         candidates.phase_slope_cost,
@@ -268,5 +289,7 @@ def yaga(signal: Signal, config: YagaConfig | None = None) -> YagaResult:
         cfg,
     )
     goi = _align_goi_to_cycles(gci, raw_goi)
-    gcis = GciResult(gci=gci - 1, goi=goi, candidates=candidates)
+    gcis = GciResult(
+        gci=gci - 1, goi=goi, candidates=candidates, goi_candidates=goi_candidates
+    )
     return YagaResult(gcis=gcis, residual=udash)

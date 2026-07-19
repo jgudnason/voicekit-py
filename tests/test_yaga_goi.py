@@ -28,9 +28,15 @@ FIXTURES = ["vowel_f0100_16k", "vowel_glide_16k", "vowel_f0120_8k"]
 
 @pytest.mark.parametrize("name", FIXTURES)
 def test_raw_goi_matches_capture(name):
-    """The raw GOI sequence (with postGOI pairing) reproduces captured goi exactly."""
+    """The raw GOI sequence (with postGOI pairing) reproduces captured goi exactly.
+
+    Also pins the second return, ``goi_candidates`` (GIF6): fed the *captured*
+    ``dp_gcic``/``gci_dp``, the exposed ``setdiff`` equals the reference ``goic``
+    positions (0-based) on all three fixtures -- including 8 kHz, since this unit
+    call uses captured inputs, not the live (F1-diverging) pipeline.
+    """
     d = np.load(GOLDEN / f"{name}.npz")
-    raw = _detect_goi_raw(
+    raw, goi_candidates = _detect_goi_raw(
         d["dp_gcic"][:, 0].astype(np.int64),
         d["dp_gcic"][:, 1].astype(np.int64),
         d["dp_sew"],
@@ -43,6 +49,9 @@ def test_raw_goi_matches_capture(name):
         YagaConfig(),
     )
     np.testing.assert_array_equal(np.sort(raw), np.sort(d["goi"].astype(np.float64)))
+    np.testing.assert_array_equal(
+        goi_candidates, d["ret_goic"][:, 0].astype(np.int64) - 1
+    )
 
 
 def test_align_derivation_places_openings_and_drops_sentinels():
