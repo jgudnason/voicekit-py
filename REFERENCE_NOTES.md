@@ -1627,3 +1627,79 @@ exercised nor asserted.
   re-reasoning. Recorded in docs/working_method.md rule 2 as a standing case.
 - **Status:** gap closed; the working-method rule it instances is the durable
   takeaway. Cross-ref docs/working_method.md (rule 2), VUV15, VUV16.
+
+---
+
+## Step 8 (weighted-LP GIF) — forward findings
+
+Watch-items and established conventions surfaced while gating the step-8 milestone
+(closed-phase, AME, symmetric/asymmetric Gaussian weighted LP). Like the Step 7
+section, these are design findings for an in-progress milestone, not port-vs-reference
+reproduction facts — except where noted as a pinned convention with a golden master.
+
+### GIF1. GIF weighting convention (W vs W^2): reproducing v_lpccovar requires `weights = W^2`
+
+Established 2026-07-18 by golden master against the reference, at the step-8 gate,
+before any weighting function was written. **This is the single seam every step-8
+method routes through**, so it is pinned first.
+
+- **The two conventions.** The reference VOICEBOX `v_lpccovar` applies its weight
+  vector as `dm = dm.*w(cs)` and `sc = s(cs).*w(cs)` (v_lpccovar.m:113–114, 128–129),
+  so it minimises `sum W^2 * resid^2` — its own header states "the error at each
+  sample is weighted by W^2". `voicekit.lpc.lpc_covar` does `sw = sqrt(w); sw*design`
+  (covariance.py), minimising `sum w * resid^2` — the error weighted by `weights`
+  *linearly*. Therefore a caller reproducing a `v_lpccovar` run with reference weight
+  vector `W` must pass **`weights = W**2`**, not `W`. Every step-8 method
+  (`weightsForLP.m` → `weightedlpc.m` → `lpccovar(sp, nar, T, w)`) produces such a
+  `W` and feeds it to the reference this way, so all of them inherit this convention.
+- **Why it had never been checked (the mechanism, not just the conclusion).** The
+  pre-step-8 weighted-covariance tests used only uniform weights
+  (`test_uniform_weights_match_default`), a zero-mask
+  (`test_zero_weight_ignores_corrupted_region`), and scaling
+  (`test_scaling_weights_leaves_coefficients_unchanged`). None can disambiguate, and
+  the reason is structural, not a matter of degree:
+  - **Under uniform weights `W = c·1`, the two conventions differ only by a global
+    scale** — `W` is the constant vector `c·1`, `W^2` is the constant vector `c²·1`,
+    and the two are proportional. The covariance solve is scale-invariant (see
+    `test_scaling_weights_leaves_coefficients_unchanged`), so it returns the identical
+    AR under `c·1` and `c²·1`. The uniform case is therefore a *special case of the
+    scaling blindness*, not independent coverage.
+  - **The scaling test is scale-invariance testing itself** — `a(w)` vs `a(3.7·w)` —
+    so it cannot possibly separate `W` from `W^2` (which are related by a non-constant
+    factor `W` only when `W` is non-uniform). It is **zero evidence** for the
+    convention, not weak evidence: a passing scale-invariance test structurally
+    *guarantees* blindness to whether the argument is `W` or `W^2`.
+  - The zero-mask has weights in `{0,1}`, where `W = W^2` exactly, so it is invariant
+    by identity.
+  This is the rule-2 shape (docs/working_method.md): a passing test read as coverage
+  when it is structurally incapable of exercising the thing claimed. Getting the
+  convention wrong does not crash or NaN; it silently solves a different least-squares
+  problem and returns a plausible glottal flow — the silent-numerical-drift failure
+  this project exists to prevent.
+- **A second way to blind the probe.** W and W^2 also coincide when the signal is
+  **exactly fittable** at the analysis order: `resid ≡ 0` makes the objective
+  weight-independent, so both conventions return the identical exact AR and the probe
+  reports a false "agree". The in-tree example is
+  `test_exact_recovery_from_impulse_response` (an order-4 impulse response recovered
+  with error ≈ 1e-18). The probe fixture is therefore chosen to be *not* low-order
+  predictable, and three pre-capture checks (nonzero residual; W vs W^2 normal-equation
+  entries differ; `lpc_covar(W).a` ≠ `lpc_covar(W^2).a`) enforce non-degeneracy before
+  the reference is run.
+- **The capture (arbiter).** `tests/golden/capture/capture_wcovar.py` builds a
+  hand-checkable order-2 fixture — `s = [1,-2,3,1,-4,2,5]`, monotone distinct weight
+  `W = [1,2,3,5,7,11,13]` — runs `v_lpccovar` (weight applied as the reference does)
+  on both the plain 2-output path and the 3-output `dc_offset` path, and writes
+  `tests/golden/wcovar_weight_convention.npz`. Result: `weights = W^2` reproduces the
+  reference AR to **6.66e-16 (machine-eps)** on both paths; `weights = W` is off by
+  0.069 (plain) / 0.040 (dc_offset). **Confirmed branch-independent**: both the plain
+  and `dc_offset` branches of `v_lpccovar` apply the weight identically (`dm.*w`), so
+  the `W^2` convention holds in both — the `dc_offset` path is the one `weightedlpc.m`
+  actually calls (`[ar,ee,dc]=lpccovar(...)`, the same three-output form VUV's
+  `alp1`/`Ep` used). (The AR *values* differ between the plain and dc paths — the dc
+  path fits a DC term jointly — which is the model changing, not the convention.)
+- **Pinned by:** `tests/test_lpc.py::TestWeightedCovarianceConvention` (machine-eps,
+  both paths, plus the reverse assertion that `weights = W` is measurably wrong).
+  Convention noted at the `sqrt(w)` site and in the docstring of `covariance.py`.
+- **Status:** established convention, pinned by golden master — not a divergence
+  (the port matches the reference when passed `W^2`). Step-8 method implementations
+  must square the `weightsForLP`-style weight vector before calling `lpc_covar`.

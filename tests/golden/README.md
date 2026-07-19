@@ -36,6 +36,13 @@ numerical target.
     `vsaTools` `extractVoiceFeatures` outputs (step 6): the function is called
     directly and its returns saved, so none of the instrument/SHA machinery above
     applies. Reads `udash`/`gci`/`fs` from each fixture, adds the `feat_*` arrays.
+  - `capture_wcovar.py` / `capture_wcovar.m` — a *black-box* capture of VOICEBOX
+    `v_lpccovar` on a tiny hand-checkable order-2 fixture, pinning the step-8
+    weighted-LP weight convention: `v_lpccovar` weights the error by `W^2`, so
+    `lpc_covar` must be passed `weights = W^2` to reproduce it. Writes
+    `wcovar_weight_convention.npz` (`ar_plain`, `ar_dc`, `dc`, `e_*`, plus the
+    `s`/`W`/`order` inputs). Runs three non-degeneracy pre-checks so the fixture
+    genuinely separates W from W^2. See REFERENCE_NOTES "GIF1".
 
 ## Inputs
 

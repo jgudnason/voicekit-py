@@ -1,5 +1,7 @@
 """Tests for the LPC solvers."""
 
+from pathlib import Path
+
 import numpy as np
 import pytest
 import scipy.linalg
@@ -215,3 +217,52 @@ class TestLpcCovar:
     def test_rejects_short_frame(self) -> None:
         with pytest.raises(ValueError, match="too short"):
             lpc_covar(np.zeros(8), order=4)
+
+
+class TestWeightedCovarianceConvention:
+    """Golden-master pin of the W-vs-W^2 weighting convention against v_lpccovar.
+
+    The reference VOICEBOX ``v_lpccovar`` applies the weight as ``dm.*w`` /
+    ``sc = s.*w``, minimising ``sum W^2 * resid^2`` (its header: "the error at
+    each sample is weighted by W^2"). ``lpc_covar`` does ``sw = sqrt(w)``,
+    minimising ``sum w * resid^2``. So reproducing the reference requires passing
+    ``weights = W^2``, NOT ``W``. Every step-8 weighted-LP GIF method routes
+    through this seam, and getting it wrong solves a different least-squares
+    problem silently (no crash / NaN).
+
+    The pre-step-8 weighted tests above could not disambiguate this: uniform
+    weights (``test_uniform_weights_match_default``), a zero-mask
+    (``test_zero_weight_ignores_corrupted_region``), and scaling
+    (``test_scaling_weights_leaves_coefficients_unchanged``) are ALL invariant
+    under both conventions -- scaling structurally so, since the solve is
+    scale-invariant. This test closes that gap with a non-uniform, non-binary
+    weight on a signal that is NOT exactly fittable at the probe order (an
+    exactly-fittable signal -- see ``test_exact_recovery_from_impulse_response``
+    -- makes both conventions agree via zero residual, a second way to blind the
+    probe). Target captured by ``tests/golden/capture/capture_wcovar.py``.
+    """
+
+    GOLD = np.load(Path(__file__).resolve().parent / "golden" / "wcovar_weight_convention.npz")
+
+    def _fixture(self) -> tuple[np.ndarray, np.ndarray, int]:
+        return self.GOLD["s"], self.GOLD["W"], int(self.GOLD["order"])
+
+    def test_w_squared_reproduces_reference_plain(self) -> None:
+        s, w, order = self._fixture()
+        got = lpc_covar(s, order=order, weights=w**2).a
+        np.testing.assert_allclose(got, self.GOLD["ar_plain"], atol=1e-12)
+
+    def test_w_squared_reproduces_reference_dc_offset(self) -> None:
+        # The path the step-8 methods actually call: weightedlpc.m invokes the
+        # three-output [ar,ee,dc]=lpccovar(sp,nar,T,w) form. Same W^2 convention.
+        s, w, order = self._fixture()
+        got = lpc_covar(s, order=order, weights=w**2, dc_offset=True).a
+        np.testing.assert_allclose(got, self.GOLD["ar_dc"], atol=1e-12)
+
+    def test_linear_w_does_not_reproduce_reference(self) -> None:
+        # The disambiguation, asserted the other way: weights=W (the wrong
+        # convention) is measurably off, so this fixture genuinely separates the
+        # two. If this ever passes, the fixture has gone degenerate.
+        s, w, order = self._fixture()
+        wrong = lpc_covar(s, order=order, weights=w).a
+        assert np.max(np.abs(wrong - self.GOLD["ar_plain"])) > 1e-3

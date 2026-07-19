@@ -37,6 +37,18 @@ def lpc_covar(
     the error by ``weights[n]`` lets callers emphasize regions such as the
     glottal closed phase. Default is uniform (plain covariance method).
 
+    WEIGHT CONVENTION (load-bearing for step 8): this minimises
+    ``sum weights[n] * resid[n]^2`` — the error is weighted by ``weights``
+    *linearly*. The reference VOICEBOX ``v_lpccovar`` instead weights the error
+    by ``W^2`` (it applies its weight as ``dm.*w`` / ``sc = s.*w``; its header
+    says "the error at each sample is weighted by W^2"). So a caller reproducing
+    a ``v_lpccovar`` run with reference weight vector ``W`` — every step-8
+    weighted-LP GIF method (closed-phase, AME, Gaussian) does exactly this —
+    must pass ``weights = W**2``, not ``W``. This was pinned by golden master
+    against ``v_lpccovar`` (``tests/test_lpc.py::TestWeightedCovarianceConvention``,
+    machine-eps on both the plain and ``dc_offset`` paths), not by matching
+    Python output. See REFERENCE_NOTES "GIF weighting convention (W vs W^2)".
+
     ``dc_offset`` reproduces VOICEBOX ``v_lpccovar``'s three-output form
     (``[ar,e,dc]``): a constant regressor is added to the design so the AR
     coefficients are fitted about a jointly-fitted DC level rather than about
@@ -79,7 +91,10 @@ def lpc_covar(
     design = np.column_stack([past, np.ones(len(target))]) if dc_offset else past
 
     # Solve the weighted least-squares problem via sqrt-weighted lstsq
-    # rather than forming normal equations (better conditioning).
+    # rather than forming normal equations (better conditioning). sqrt(w) here
+    # means the error is weighted by w LINEARLY (min sum w*resid^2). v_lpccovar
+    # weights by W^2; reproducing it requires the caller pass weights = W^2. See
+    # the docstring's WEIGHT CONVENTION note and REFERENCE_NOTES (W vs W^2).
     sw = np.sqrt(w)
     coef_full, *_ = np.linalg.lstsq(sw[:, None] * design, -sw * target, rcond=None)
     coef = coef_full[:order]  # AR lags; drops the DC coefficient when dc_offset
