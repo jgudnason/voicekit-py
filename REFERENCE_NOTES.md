@@ -1704,6 +1704,63 @@ method routes through**, so it is pinned first.
   (the port matches the reference when passed `W^2`). Step-8 method implementations
   must square the `weightsForLP`-style weight vector before calling `lpc_covar`.
 
+### GIF2. Closed-phase design fork: locked to the reference (full-frame solve + 0/1 weight mask); the interval-restricted alternative is deferred and item-9-gated
+
+Decided 2026-07-18 at the step-8 gate, framed the same way the `r1` decision was
+(docs/vuv_r1_null.md, VUV14): a parity target is chosen **now**, and the alternative is
+recorded as a named, deferred option reopenable only against evidence that does not yet
+exist — not carried open into implementation.
+
+- **What the reference does.** The reference closed-phase method does **not** restrict
+  the LPC solve to the closed phase. `weightedlpc.m` solves over the full analysis
+  frame (`nar = ceil(fs/1000) = 20` at `fs = 20000`, frame length ~640 samples from the
+  32 ms / 16 ms grid), and the closed phase enters only as a **0/1 weight** that zeros
+  the open phase and a `cpDelay`-long return phase after each GCI. Verbatim, the mask
+  construction (`Toolbox/weightsForLP.m`, `case 'cp'`):
+  ```matlab
+  w=ones(1,nsp);
+  ...
+  cpDelay=round(cpDelay*fs);
+  ...
+  for in=1:length(gci)-1
+      if (gci(in+1)-gci(in))>maxSamplesPerCycle
+          % ... interval between voiced spurts, leave w=1 except suppress
+          w(max(1,(gci(in)-cpDelay)):gci(in))=0;
+          continue;
+      end;
+      % Suppress return phase
+      w(gci(in):(gci(in)+cpDelay))=0;
+      % Suppress open phase
+      w(goi(in):gci(in+1))=0;
+  end;
+  ```
+  So the weight is `1` on the closed phase and `0` on `[gci, gci+cpDelay]` (return) and
+  `[goi, gci_next]` (open). The solve interval is the **frame**, always `>> order`, so
+  **C8's short-frame order reduction (`pp = min(p, nc-d0)`) is never reached on this
+  path** — `nc` is the frame length.
+- **Locked target.** The full-frame solve + 0/1 closed-phase weight mask is the parity
+  target for the step-8 closed-phase method. Combined with GIF1: the mask `w ∈ {0,1}` is
+  passed to `lpc_covar` as `weights = w**2` — which for a 0/1 mask equals `w` (idempotent),
+  so the convention is a no-op here, but the method layer must still square uniformly for
+  consistency with the non-binary Gaussian/AME weights.
+- **Deferred alternative (named, item-9-gated).** VOICEBOX `v_lpccovar` note (4) supports
+  an interval-restricted closed-phase analysis: set `T`-matrix rows to the short
+  closed-phase intervals themselves (multiple disjoint segments per row if a closed phase
+  is < 2 ms), solving **only** over the closed phase. That design (a) reaches C8's
+  order-reduction path (short-by-construction intervals) and (b) has different rank
+  behaviour (see GIF3). Choosing between full-frame-weight and interval-restricted has an
+  **accuracy dimension that is unmeasurable until item-9's scoring harness exists**
+  (§5 Track A/B, OpenGlot/APLAWD). Leaving it open would not preserve an *informed*
+  decision — nothing in step 8 can make that call — it would defer an *uninformed* one to
+  a worse moment and let it resolve against whatever fixture is on screen at resolution
+  time (rule 1). So it is decided-for-parity now, reopenable only against item-9 evidence.
+- **Discipline binding.** The parity obligation binds the method layer to the reference;
+  any departure is a **define-the-target decision needing its own out-of-sample
+  justification** — the same rule as `r1` (VUV14), new milestone. Cross-ref
+  docs/vuv_r1_null.md, DESIGN §5 (Track A/B), and C8.
+- **Status:** locked to reference for parity; interval-restricted alternative deferred,
+  item-9-gated.
+
 ### GIF3. Effective-support < order: a rank-deficiency degeneracy distinct from C8 — reference (basic solution) and voicekit (min-norm) diverge silently
 
 Found 2026-07-18 by construction (define-the-target: no committed fixture is guaranteed
@@ -1754,3 +1811,51 @@ not folded into it.**
 - **Status:** open — behaviour established, policy deferred to the closed-phase gate.
   Cross-ref C8, GIF2 (the interval-restricted alternative reaches this too).
 
+### GIF4. Two-revision Gaussian weighting: current `Toolbox/weightsForLP.m` is authoritative; `weightsForLP_old.m` is the superseded predecessor (DESIGN §5's missing `-0.5`, located)
+
+Established 2026-07-18 from source (the parameter pins in `projParam.m`), before any
+Python weighting function exists to fit to — rule 1 clean. The authority is determined
+by which file `projParam.m`'s parameters fit, **not** by matching Python output to a
+revision.
+
+- **The `rgauss` difference is DESIGN §5's named example, now located.** Verbatim:
+  - superseded (`weightsForLP_old.m`, `case 'rgauss'`): `sig2=sig^2;` then
+    `gg = gg + kappa*exp(-(nn-gci(ii)).^2/sig2);` — i.e. `exp(-x²/σ²)`, **missing the
+    `-0.5`** (not a proper Gaussian).
+  - current (`Toolbox/weightsForLP.m`, `case 'rgauss'`): `sig2=sig^2;` then
+    `gg = gg + kappa*exp(-0.5*(nn-gci(ii)).^2/sig2);` — i.e. `exp(-0.5·x²/σ²)`, a proper
+    Gaussian.
+  This is exactly the "missing `-0.5` factor in a Gaussian weighting exponent, introduced
+  silently between two revisions of the same function" that DESIGN §5 cites as the
+  project's motivating golden-master example — now identified in the tree.
+- **`agauss` and `cp` also differ** (corroborating that these are two genuine revisions):
+  - `agauss`: current caps `N0` at `maxSamplesPerCycle` (`N0=min(gci(ii)-gci_last,maxSamplesPerCycle)`)
+    and clamps `w = max(0, 1-gg)`; the old version does neither (`N0=gci(ii)-gci_last`
+    uncapped, `w = 1-gg` can go negative). Current also seeds `gci_last=max(1,gci(1)-maxSamplesPerCycle)`
+    vs old `gci_last=max(1,gci(2)-gci(1))`.
+  - `cp`: current is the `cpDelay` loop (GIF2 quote); old is a `cumsum`/`cpFrac`
+    construction (`w(adgci)=1; w(goi)=-1; w=cumsum(w)` with a `cpFrac`-based non-voiced
+    fill).
+- **Authority evidence (from source, pre-Python).** `projParam.m` pins parameters that
+  fit **only** the current file:
+  - `case 'cp'`: sets `cpDelay` but **not** `cpFrac` — and comments the latter out
+    (`%par.wpar.cpFrac = 0.8;`). The old `cp` *requires* `cpFrac`; the current `cp`
+    comments it out (`%cpFrac = par.cpFrac;`). So `projParam` fits the current `cp`.
+  - `case 'agauss'`: `kappa = 0.99; alpha = 0.1; r = 2;` with the comment "parameters
+    recommended in *Zalazar et al, Symmetric and asymmetric Gaussian weighted linear
+    prediction for voice inverse filtering, 2024*". These are the current `agauss`'s
+    parameters.
+  The target is thus chosen from the parameter pins (source), before any Python exists —
+  no fit to Python output.
+- **Method → paper mapping, and the single-oracle flag.** `rgauss` = **symmetric** and
+  `agauss` = **asymmetric** Gaussian weighting (Zalazar et al. 2024); `ame` cites Alku
+  ("Improved formant frequency ..."). **No paper PDFs are in the tree, and no independent
+  MATLAB cross-check exists** — COVAREP carries only IAIF variants, not CP/AME/weighted-LP
+  GIF. So the prior research code is the **sole behavioural oracle** for all three methods:
+  these are golden-master-against-the-reference with **no second independent oracle**. That
+  **raises the value of the synthetic-known-value hand-checks** when these methods are
+  implemented — with only one behavioural oracle, the "computes what I expect" check
+  (assert the decomposition, not just the final value) carries more weight than usual.
+- **Status:** authority established (current authoritative, old superseded); `-0.5`
+  example located. Ledgered ahead of the Gaussian method implementation; the capture
+  target is the current `Toolbox/weightsForLP.m`.
