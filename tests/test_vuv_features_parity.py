@@ -1,9 +1,9 @@
 """MATLAB parity for the VUV features -- the oracle the synthetic tests cannot be.
 
-Compares this module's per-frame features against MATLAB ``vuvMeasurements``'s
+Compares this module's per-frame features against the MATLAB reference VUV feature extractor's
 ``FM``, captured to ``<name>.vuvfeat.npz`` (see ``capture_vuv_features.py``). Runs
 in CI **without** MATLAB -- the committed ``.npz`` is the oracle, regenerable from
-a fresh MATLAB run (``vuvMeasurements`` is deterministic).
+a fresh MATLAB run (the reference VUV feature extractor is deterministic).
 
 This is the mechanism that catches a wrong-but-separating ``C1`` (which the
 C1-alone floor structurally cannot), and it is what caught the ``alp1``/``Ep``

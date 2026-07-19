@@ -1,6 +1,6 @@
 """Atal-Rabiner per-frame voicing features: Nz, Es, C1, alp1, Ep.
 
-Reproduces the feature definitions of ``inriaGIF/vus/vuvMeasurements.m`` (Jon
+Reproduces the feature definitions of the reference VUV feature extractor (Jon
 Gudnason 2004; after Atal & Rabiner 1976) -- **the definitions, reproduced from
 the formulas, not ported**. This is the FEATURE SET only: it emits the per-frame
 feature matrix, no voicing label, no threshold, no decision.

@@ -55,7 +55,7 @@ def lpc_covar(
     zero (``s(n)-DC`` instead of ``s(n)``). ``a`` and ``error`` are then the AR
     coefficients and residual energy of that DC-included fit; ``signal_energy``
     is unchanged (the window energy is DC-independent). The fitted DC itself is
-    not returned — no caller needs it (the reference's ``vuvMeasurements``
+    not returned — no caller needs it (the reference VUV feature extractor
     requests it only to trigger the modification, then discards it). Default
     off: the design is not augmented and the result is bit-identical to the
     plain covariance method.

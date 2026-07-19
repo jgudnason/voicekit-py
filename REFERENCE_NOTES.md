@@ -666,7 +666,7 @@ decision.** The step-7 fork was originally recorded as "define-the-target" (no
 authoritative MATLAB voicing to golden-master), and that is still true of the
 **decision** stage: C's GMM and E's trained centroids made it non-deterministic,
 and no canonical voicing behaviour exists to match. But the **features**
-(`vuvMeasurements`: Nz, Es, C1, alp1, Ep) are a *deterministic* function of the
+(the reference VUV feature extractor: Nz, Es, C1, alp1, Ep) are a *deterministic* function of the
 signal — no RNG — so they **are** golden-masterable, exactly like steps 1–6. The
 features are therefore captured against a MATLAB oracle
 (`tests/synthetic/*.vuvfeat.npz`, regenerable via `capture_vuv_features.py`) and
@@ -865,7 +865,7 @@ tail.
 ### VUV6. VUV frame grid locked: 32 ms / 10 ms, its own config, independent of IAIF
 
 The voicing frame grid is locked at **32 ms frames / 10 ms hop** (the reference
-`vuvMeasurements` defaults), in `VoicingGrid` (`src/voicekit/vuv/grid.py`) — its own
+the reference VUV feature extractor's defaults), in `VoicingGrid` (`src/voicekit/vuv/grid.py`) — its own
 config, **not** derived from `IaifConfig`. @16 kHz: `frame_len` 512, `hop` 160,
 guard band **W = 512/2 + 160/2 = 336** samples; @8 kHz: 256 / 80 / 168.
 
@@ -912,7 +912,7 @@ floor assertion *is* "C1 separates" — a wrong C1 that still separates passes.
 - **Reproduce-the-definition payload — a numerator/denominator `s0` asymmetry
   (surfaced quirk, reproduced not corrected).** The reference line is
   `sum(s(2:end).*s(1:end-1)+s(1)*s0) / sqrt(ssq*([s0; s(1:end-1)]'*[s0; s(1:end-1)]))`
-  ([vuvMeasurements.m:89](inriaGIF/vus/vuvMeasurements.m)). By MATLAB semantics
+  (the reference VUV feature extractor's C1 line). By MATLAB semantics
   (`s` is `N×1` since `sp=sp(:)`; `s(1)*s0` is a **scalar**; `(N-1)×1 vector +
   scalar` broadcasts the scalar), the **numerator** boundary term `s(1)*s0` enters
   **N-1 times**: `Σ(s(2:end).*s(1:end-1)) + (N-1)·s(1)·s0`. The **denominator**'s
@@ -932,7 +932,7 @@ floor assertion *is* "C1 separates" — a wrong C1 that still separates passes.
 - **Mitigation (landed):** C1's fidelity gets the strongest verification of the
   five — hand-computed synthetic-known-value tests isolating the `s0` reach, the
   broadcast, the denominator (`tests/test_vuv_features.py`), **and** the
-  `vuvMeasurements` parity capture (`tests/test_vuv_features_parity.py`, oracle
+  reference VUV feature extractor parity capture (`tests/test_vuv_features_parity.py`, oracle
   `tests/synthetic/*.vuvfeat.npz`).
 - **What the parity capture proved (VUV7 closed):**
   - **C1's broadcast reading is confirmed BIT-EXACT by the oracle** (0.0 abs error
@@ -941,7 +941,7 @@ floor assertion *is* "C1 separates" — a wrong C1 that still separates passes.
     cover — is now caught by parity.
   - **The capture caught the `alp1`/`Ep` DC-offset gap the synthetic tests
     structurally could not.** Commit 2 read `alp1`/`Ep` from plain covariance LPC;
-    the oracle showed them off by ~1.3e-2 / ~5.7e-2, tracing to `vuvMeasurements`'s
+    the oracle showed them off by ~1.3e-2 / ~5.7e-2, tracing to the reference VUV feature extractor's
     three-output `[ar,e,dc]=lpccovar` (DC-offset fit). Routing through
     `dc_offset=True` (commit 3b) brought them to BLAS-ε (≤3.4e-12 / ≤3.8e-8). This
     is the concrete evidence the capture was **required**, not optional: the
@@ -1022,7 +1022,7 @@ full derivation and predictions in [docs/vuv8_c1_null.md](docs/vuv8_c1_null.md).
 
 ### VUV9. Coverage gap: no fixture exercises a rate where reference `ceil` ≠ VoicingGrid `round`
 
-`vuvMeasurements` frames with `ceil(dur·fs)`; the locked `VoicingGrid` uses `round`.
+the reference VUV feature extractor frames with `ceil(dur·fs)`; the locked `VoicingGrid` uses `round`.
 They **coincide at 8 kHz and 16 kHz** (exact products), which is every current
 fixture — so `round` wins with no conflict, and reference-`ceil` is reproduced
 where coincident. But no fixture exercises a rate where `ceil ≠ round`, so that
@@ -1034,7 +1034,7 @@ and must be reconciled. Coverage-gap-style item, VUV-local. Status: open gap.
 
 The primary source (Atal & Rabiner, *IEEE Trans. ASSP-24*(3), 1976, pp. 201–212;
 full reprint from Rabiner's UCSB archive) was read in full on 2026-07-16 to
-establish what the reference `vuvMeasurements.m` — whose header cites the paper
+establish what the reference VUV feature extractor — whose header cites the paper
 as the definition of its five features — was *trying* to compute. Finding: **the
 MATLAB is a loose implementation of the paper generally, with C1's broadcast the
 only outright formula error.** Our golden master proves parity with the MATLAB;
@@ -1370,12 +1370,12 @@ entry closes that gap **from source**. It records *why* the decision was taken,
 not *whether*; the decision is ratified and is not re-opened here.
 
 **Both share the feature layer and nothing else.** Each calls
-`vuvMeasurements.m` — the five Atal-Rabiner features we golden-mastered
+the reference VUV feature extractor — the five Atal-Rabiner features we golden-mastered
 (VUV7) — and then diverges completely.
 
 #### C — the unsupervised per-utterance GMM voicing detector
 
-End-to-end: mean-subtract and peak-normalize the signal → `vuvMeasurements`
+End-to-end: mean-subtract and peak-normalize the signal → the reference VUV feature extractor
 (32 ms / 10 ms / `nar`=16) → **`gaussmix(FM,[],[],3,'v')`: an unsupervised
 3-component GMM fit to the input signal's *own* feature matrix** — there is no
 training corpus at all, C refits per utterance → heuristic component
@@ -1388,7 +1388,7 @@ the reference weighted-GIF driver and the reference multi-file driver call it; n
 
 #### E — the supervised Mahalanobis minimum-distance voicing detector
 
-End-to-end: `vuvMeasurements` → Mahalanobis distance from each frame's feature
+End-to-end: the reference VUV feature extractor → Mahalanobis distance from each frame's feature
 vector to three class centroids (`m` 3×5, `C` 5×15, one 5×5 covariance per
 class) → minimum-distance assignment → labels {−1 = unvoiced, 0 = silence,
 1 = voiced}. **E is the paper's own decision rule** (Atal & Rabiner Eq. (10),
@@ -1421,7 +1421,7 @@ inconsistent stages — differing in rule, training, class identification, label
 encoding, and granularity — neither reconciled to the other, only one on any
 live path, and that one uncaptured. There is no canonical decision behaviour to
 reproduce. (The *features* remain capture-and-match precisely because both
-implementations share `vuvMeasurements` unchanged — VUV7's fork-scoping.)
+implementations share the reference VUV feature extractor unchanged — VUV7's fork-scoping.)
 
 #### The rejection evidence
 

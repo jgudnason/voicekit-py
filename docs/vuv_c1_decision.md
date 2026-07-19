@@ -12,8 +12,8 @@ finding), VUV10 (paper-fidelity characterization of the reference).
 Primary source, read in full for this record: B. S. Atal and L. R. Rabiner, "A
 Pattern Recognition Approach to Voiced-Unvoiced-Silence Classification with
 Applications to Speech Recognition," *IEEE Trans. ASSP*, vol. 24, no. 3,
-pp. 201–212, June 1976. The reference implementation (`vuvMeasurements.m`,
-2004) cites this paper in its header as the definition of its five features.
+pp. 201–212, June 1976. The reference implementation (the reference VUV feature
+extractor, 2004) cites this paper in its header as the definition of its five features.
 
 Three questions have been getting conflated. Separated:
 
