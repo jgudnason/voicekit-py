@@ -60,8 +60,9 @@ component, not reproduction facts.
 back to this file (e.g. `# see REFERENCE_NOTES.md: waveform window +1`) rather
 than re-explaining the quirk, so the rationale lives in one place.
 
-**Naming & provenance convention** (authority: CLAUDE.md "Provenance"): the prior
-MATLAB research code — including the `vsaTools` working tree — is private and
+**Naming & provenance convention** (authority: CLAUDE.md "Provenance", which
+scopes the rule to the private trees by name): the prior MATLAB research code —
+a private working tree of prior research code — is private and
 unpublished, so this file refers to its files generically ("the reference
 weighted-GIF driver", "the reference GOI-selection step"), never by filename. It
 is the private *filename* that is withheld, not the *method*: published

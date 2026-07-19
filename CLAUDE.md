@@ -18,11 +18,19 @@ paths that don't belong in a public repo.
 ## Provenance
 
 - This project draws on a long line of prior MATLAB research code by the
-  user. All of that MATLAB code — including the `vsaTools` working tree —
-  is private, untested, and unpublished. When referring to any of it in
-  docs, comments, or commit messages, do not name its directories or
-  internal filenames — refer to them generically ("prior research code",
-  "the reference weighted-GIF driver", "the reference parameter file").
+  user. All of that MATLAB code — the private working trees, e.g. `vsaTools`
+  and `inriaGIF`, and any other prior-research-code directories — is
+  private, untested, and unpublished. When referring to any of it in docs,
+  comments, or commit messages, do not name its directories or internal
+  filenames — refer to them generically ("prior research code", "the
+  reference weighted-GIF driver", "the reference parameter file"). The one
+  exception is this rule itself: the trees are named **here**, so the rule
+  can state what it scopes (a rule cannot bind a referent it may not name);
+  everywhere else, including a pointer that merely defers to this rule, the
+  names genericize. Naming both known trees here is deliberate — the earlier
+  sweep enumerated only `vsaTools`, which let `inriaGIF` files hide, so the
+  next provenance check should start from this complete referent list rather
+  than rediscover a tree by grep.
 - The filename is what is withheld, not the method. Algorithms that are
   published, or that the user is publishing as part of voicekit (e.g. the
   GOI candidate-selection step the closed-phase weighter consumes), may be
