@@ -18,12 +18,24 @@ paths that don't belong in a public repo.
 ## Provenance
 
 - This project draws on a long line of prior MATLAB research code by the
-  user. When referring to that history in docs, comments, or commit
-  messages, do not name the user's informal, unpublished legacy project
-  directories or their internal filenames — refer to them generically
-  (e.g. "prior research code") instead. Publicly released prior work
-  (the user's `vsaTools` repo, VOICEBOX, published papers) may be named
-  and cited freely.
+  user. All of that MATLAB code — including the `vsaTools` working tree —
+  is private, untested, and unpublished. When referring to any of it in
+  docs, comments, or commit messages, do not name its directories or
+  internal filenames — refer to them generically ("prior research code",
+  "the reference weighted-GIF driver", "the reference parameter file").
+- The filename is what is withheld, not the method. Algorithms that are
+  published, or that the user is publishing as part of voicekit (e.g. the
+  GOI candidate-selection step the closed-phase weighter consumes), may be
+  described freely and in full mechanism. Likewise voicekit's own public
+  API may echo the MATLAB names (a `pick_gois` function, a `weighted_lpc`
+  solver) — that is voicekit's namespace, the maintainer's choice; the
+  rule constrains references to the private MATLAB files, never voicekit's
+  own names.
+- Publicly released prior work may be named and cited freely: VOICEBOX and
+  its `v_`-prefixed functions (`v_lpccovar`, `v_dypsa`, …), the DYPSA
+  GCI/GOI method (VOICEBOX's `v_dypsa`, jointly copyrighted by the user
+  and co-authors), and published papers (the DYPSA papers, Alku,
+  Zalazar et al., Atal & Rabiner, …).
 
 ## Design principles
 
