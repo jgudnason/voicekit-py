@@ -23,7 +23,6 @@ Usage:
 
 from __future__ import annotations
 
-import os
 import subprocess
 import sys
 import tempfile
@@ -35,15 +34,13 @@ import scipy.io
 SYN = Path(__file__).resolve().parent
 # The loud-failure path resolver is single-sourced under the golden-capture dir.
 sys.path.insert(0, str(SYN.parent / "golden" / "capture"))
-from refpaths import require_reference_dir  # noqa: E402
+from refpaths import require_reference_dir, require_reference_file  # noqa: E402
 
-MATLAB = os.environ.get("VOICEKIT_MATLAB", "/Applications/MATLAB_R2024b.app/bin/matlab")
+MATLAB = require_reference_file("VOICEKIT_MATLAB", "the MATLAB executable")
 VUV_REFERENCE = require_reference_dir(
     "VOICEKIT_VUV_REFERENCE_DIR", "the reference tree root providing the VUV feature extractor"
 )
-VOICEBOX = Path(
-    os.environ.get("VOICEKIT_VOICEBOX", Path.home() / "Documents/Current/voicebox/voicebox")
-)
+VOICEBOX = require_reference_dir("VOICEKIT_VOICEBOX", "the VOICEBOX toolbox checkout")
 
 FIXTURES = ["vuv_d1_offset_16k", "vuv_d2_vfric_16k", "vuv_d3_breathy_16k", "vuv_svuvs_16k"]
 

@@ -21,7 +21,6 @@ Usage:
 
 from __future__ import annotations
 
-import os
 import subprocess
 import tempfile
 from pathlib import Path
@@ -30,18 +29,14 @@ import make_inputs
 import numpy as np
 import scipy.io
 from instrument import apply as instrument_apply
-from refpaths import require_reference_dir
+from refpaths import require_reference_dir, require_reference_file
 
 REPO = Path(__file__).resolve().parents[3]
 FIXTURES = REPO / "data" / "fixtures"
 GOLDEN = REPO / "tests" / "golden"
 
-MATLAB = os.environ.get(
-    "VOICEKIT_MATLAB", "/Applications/MATLAB_R2024b.app/bin/matlab"
-)
-VOICEBOX = Path(
-    os.environ.get("VOICEKIT_VOICEBOX", Path.home() / "Documents/Current/voicebox/voicebox")
-)
+MATLAB = require_reference_file("VOICEKIT_MATLAB", "the MATLAB executable")
+VOICEBOX = require_reference_dir("VOICEKIT_VOICEBOX", "the VOICEBOX toolbox checkout")
 REFERENCE = require_reference_dir(
     "VOICEKIT_REFERENCE_DIR", "the reference tree root providing the GCI/GOI detector"
 )

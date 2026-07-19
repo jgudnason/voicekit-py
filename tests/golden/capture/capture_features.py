@@ -17,19 +17,18 @@ Usage:
 
 from __future__ import annotations
 
-import os
 import subprocess
 import tempfile
 from pathlib import Path
 
 import numpy as np
 import scipy.io
-from refpaths import require_reference_dir
+from refpaths import require_reference_dir, require_reference_file
 
 REPO = Path(__file__).resolve().parents[3]
 GOLDEN = REPO / "tests" / "golden"
 
-MATLAB = os.environ.get("VOICEKIT_MATLAB", "/Applications/MATLAB_R2024b.app/bin/matlab")
+MATLAB = require_reference_file("VOICEKIT_MATLAB", "the MATLAB executable")
 REFERENCE = require_reference_dir(
     "VOICEKIT_REFERENCE_DIR", "the reference tree root providing the voice-feature pipeline"
 )

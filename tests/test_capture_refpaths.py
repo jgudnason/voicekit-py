@@ -47,3 +47,33 @@ def test_nonexistent_dir_raises(monkeypatch: pytest.MonkeyPatch, tmp_path: Path)
 def test_valid_dir_returned(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setenv(_VAR, str(tmp_path))
     assert refpaths.require_reference_dir(_VAR, "the reference tree") == tmp_path
+
+
+# require_reference_file: same loud-failure contract, for referents that are a
+# file (e.g. the MATLAB executable) rather than a directory.
+
+
+def test_file_unset_raises_naming_the_variable(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv(_VAR, raising=False)
+    with pytest.raises(SystemExit, match=f"{_VAR} is not set"):
+        refpaths.require_reference_file(_VAR, "the MATLAB executable")
+
+
+def test_file_nonexistent_raises(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setenv(_VAR, str(tmp_path / "no_such_binary"))
+    with pytest.raises(SystemExit, match="not an existing file"):
+        refpaths.require_reference_file(_VAR, "the MATLAB executable")
+
+
+def test_file_rejects_a_directory(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    # A directory is not a file: the executable check must not accept a dir.
+    monkeypatch.setenv(_VAR, str(tmp_path))
+    with pytest.raises(SystemExit, match="not an existing file"):
+        refpaths.require_reference_file(_VAR, "the MATLAB executable")
+
+
+def test_valid_file_returned(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    binary = tmp_path / "matlab"
+    binary.write_text("#!/bin/sh\n")
+    monkeypatch.setenv(_VAR, str(binary))
+    assert refpaths.require_reference_file(_VAR, "the MATLAB executable") == binary

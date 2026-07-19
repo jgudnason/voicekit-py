@@ -15,8 +15,8 @@ would make both conventions agree and the probe blind). Three pre-capture checks
 enforce non-degeneracy before the reference is run.
 
 Not run in CI. Requires MATLAB + a local VOICEBOX checkout; paths via env vars
-(defaults match the other capture scripts here). Writes
-``tests/golden/wcovar_weight_convention.npz``.
+(the same loud-on-unset resolvers the other capture scripts use, no defaults).
+Writes ``tests/golden/wcovar_weight_convention.npz``.
 
 Usage:
     python tests/golden/capture/capture_wcovar.py
@@ -24,21 +24,19 @@ Usage:
 
 from __future__ import annotations
 
-import os
 import subprocess
 import tempfile
 from pathlib import Path
 
 import numpy as np
 import scipy.io
+from refpaths import require_reference_dir, require_reference_file
 
 REPO = Path(__file__).resolve().parents[3]
 GOLDEN = REPO / "tests" / "golden"
 
-MATLAB = os.environ.get("VOICEKIT_MATLAB", "/Applications/MATLAB_R2024b.app/bin/matlab")
-VOICEBOX = Path(
-    os.environ.get("VOICEKIT_VOICEBOX", Path.home() / "Documents/Current/voicebox/voicebox")
-)
+MATLAB = require_reference_file("VOICEKIT_MATLAB", "the MATLAB executable")
+VOICEBOX = require_reference_dir("VOICEKIT_VOICEBOX", "the VOICEBOX toolbox checkout")
 
 ORDER = 2
 # Distinct hand-chosen integers, NOT order-2 predictable (check a); not a ramp,
