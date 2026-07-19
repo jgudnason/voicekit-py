@@ -1703,3 +1703,54 @@ method routes through**, so it is pinned first.
 - **Status:** established convention, pinned by golden master — not a divergence
   (the port matches the reference when passed `W^2`). Step-8 method implementations
   must square the `weightsForLP`-style weight vector before calling `lpc_covar`.
+
+### GIF3. Effective-support < order: a rank-deficiency degeneracy distinct from C8 — reference (basic solution) and voicekit (min-norm) diverge silently
+
+Found 2026-07-18 by construction (define-the-target: no committed fixture is guaranteed
+to drive a closed-phase frame below effective-support order, so a synthetic
+known-degeneracy fixture is the oracle). **This is a different degeneracy from C8 and is
+not folded into it.**
+
+- **C8 vs GIF3.**
+  - *C8* is **`nc < p`** (frame shorter than order): `v_lpccovar` reduces order
+    (`pp = min(p, nc-d0)`), `lpc_covar` raises.
+  - *GIF3* is **`nc >> p` but nonzero-weight support `< p`**: with a 0/1 closed-phase
+    weight, a long frame's effective support (nonzero-weight sample count ≈ a few closed
+    phases) can fall below the order while the frame length far exceeds it. The weighted
+    normal equations go **rank-deficient on a long frame**. `pp = min(p, nc-d0)` does
+    **not** trigger (it keys on `nc`, the frame length, not on effective support), so
+    `v_lpccovar` does **not** reduce order here — it solves the rank-deficient system as-is.
+- **The GIF1 convention does not settle this.** The `W^2` pin used a full-support,
+  full-rank system; it says nothing about *which* solution each side returns under
+  rank-deficiency. That is a separate question, and this entry has its **own** fixture
+  (the convention fixture structurally cannot reach the degeneracy).
+- **The fixture (synthetic, hand-verifiable degeneracy).** `order = 4`, `N = 40`,
+  `s[n] = sin(0.7n) + 0.3·sin(1.9n)` (deterministic, chosen by construction not fitted),
+  0/1 weight nonzero only at predicted-sample indices `{10, 20, 30}`. The three explicit
+  checks (analogue of GIF1's pre-capture gate — proving the fixture *reaches* the
+  degeneracy, not merely looks like it):
+  - (a) `nc = 36 > order = 4` (frame is long);
+  - (b) nonzero-weight support `= 3 < order = 4` (support is short);
+  - (c) `rank(sqrt(w)·design) = 3 < 4` (weighted design is rank-deficient).
+- **What each side returns (found, from code and the reference, not assumed).** Both are
+  **finite — no crash, no NaN** — and they **differ**:
+  - `voicekit lpc_covar(weights=w).a = [1, -0.322907, -0.230831, 0.097037, 0.721682]`
+    — the **minimum-norm** solution (numpy `lstsq`/SVD; confirmed it matches an explicit
+    min-norm solve), `‖coef‖₂ = 0.829`.
+  - `v_lpccovar(...,w) AR = [1, -0.378368, -0.107892, -0.0, 0.749237]` — MATLAB `\`
+    (`aa = dm\sc`) returns a **basic solution** (rank-revealing QR: at most `rank(A)`
+    nonzero components — note the `-0.0` third coefficient), `‖coef‖₂ = 0.846`. MATLAB
+    emitted a rank-deficiency warning at the backslash sites (`v_lpccovar.m` lines 116,
+    131), confirming it reaches and solves the deficient system rather than reducing or
+    erroring.
+  - `max|Δ| = 0.123`. **The two return different finite AR silently** — the min-norm
+    (numpy) and basic (MATLAB `\`) solutions of the same rank-deficient system.
+- **Not fixed this round (deliberate).** No side is changed. This entry establishes the
+  behaviour and flags it for the **closed-phase implementation gate**, where the policy —
+  guard-and-raise, skip-cycle, or reproduce-reference-basic-solution — gets decided.
+  Per rule 1 that policy must be settled **before** any fixture shows which choice keeps
+  the most cycles green. Characterized (not asserted-for-parity) by
+  `tests/test_lpc.py::TestWeightedRankDeficiency`.
+- **Status:** open — behaviour established, policy deferred to the closed-phase gate.
+  Cross-ref C8, GIF2 (the interval-restricted alternative reaches this too).
+

@@ -266,3 +266,53 @@ class TestWeightedCovarianceConvention:
         s, w, order = self._fixture()
         wrong = lpc_covar(s, order=order, weights=w).a
         assert np.max(np.abs(wrong - self.GOLD["ar_plain"])) > 1e-3
+
+
+class TestWeightedRankDeficiency:
+    """Characterize the effective-support < order degeneracy (REFERENCE_NOTES GIF3).
+
+    Distinct from C8 (the short-frame `nc < order` order-reduction). Here the
+    frame is LONG (`nc >> order`) but a 0/1 weight leaves fewer nonzero samples
+    than the order, so the weighted normal equations are rank-deficient on a long
+    frame. `lpc_covar` returns the minimum-norm solution (numpy lstsq/SVD) --
+    finite, no raise, no NaN. The reference `v_lpccovar` returns a *basic*
+    solution (MATLAB backslash) instead, so the two diverge silently by ~0.12 on
+    this fixture; that divergence is a FOUND fact recorded in GIF3, and the policy
+    (guard/skip/reproduce) is deferred to the closed-phase implementation gate.
+    This test does NOT assert a parity value -- it characterizes voicekit's
+    current behaviour and pins that the fixture actually reaches the degeneracy.
+    """
+
+    order = 4
+    N = 40
+    n = np.arange(N)
+    s = np.sin(0.7 * n) + 0.3 * np.sin(1.9 * n)
+    w = np.zeros(N)
+    w[[10, 20, 30]] = 1.0  # nonzero support = 3 < order = 4
+
+    def test_fixture_reaches_the_degeneracy(self) -> None:
+        # The three explicit checks: long frame, short support, rank-deficient.
+        past = np.column_stack(
+            [self.s[self.order - k : self.N - k] for k in range(1, self.order + 1)]
+        )
+        nc = past.shape[0]
+        support = int(np.count_nonzero(self.w[self.order :]))
+        rank = int(np.linalg.matrix_rank(np.sqrt(self.w[self.order :])[:, None] * past))
+        assert nc > self.order  # (a) frame is long
+        assert support < self.order  # (b) support is short
+        assert rank < self.order  # (c) weighted design is rank-deficient
+
+    def test_lpc_covar_returns_finite_min_norm_solution(self) -> None:
+        # Current behaviour: no raise, no NaN, and the returned coefficients are
+        # the minimum-2-norm least-squares solution (numpy lstsq). Documented, not
+        # a decision -- see GIF3.
+        res = lpc_covar(self.s, order=self.order, weights=self.w)
+        assert np.all(np.isfinite(res.a))
+        past = np.column_stack(
+            [self.s[self.order - k : self.N - k] for k in range(1, self.order + 1)]
+        )
+        sw = np.sqrt(self.w[self.order :])
+        coef_minnorm, *_ = np.linalg.lstsq(
+            sw[:, None] * past, -sw * self.s[self.order :], rcond=None
+        )
+        np.testing.assert_allclose(res.a[1:], coef_minnorm, atol=1e-12)
