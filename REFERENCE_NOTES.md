@@ -1,8 +1,8 @@
 # Reference notes: reproduced quirks
 
 This document tracks places where the voicekit-py port deliberately **reproduces**
-a specific behaviour of the reference MATLAB implementation (`dypsagoi.m` and the
-VOICEBOX functions it calls), including behaviours the reference's own authors
+a specific behaviour of the reference MATLAB implementation (the reference GCI/GOI
+detector and the VOICEBOX functions it calls), including behaviours the reference's own authors
 flag as probable bugs.
 
 ## Five sections — read this first
@@ -40,7 +40,7 @@ from correctness; they do **not** diverge from the reference.
    fixture's end-to-end anchor is simply not a faithful capture of the live pipeline.
 5. **Feature observations** (§ "Feature observations — a developing reference"). Like
    the reproduced-quirk entries, but for the voice-feature reference
-   (`extractVoiceFeatures.m`), which is at an earlier developmental stage and likely
+   (the reference feature-extraction pipeline), which is at an earlier developmental stage and likely
    carries small unironed issues (time-shifts, normalizations). These are **matched
    faithfully** like everything else; the entries record the doubt as an overview to
    revisit when the reference stabilizes. Unlike entries 1–5 they generally **do not**
@@ -85,7 +85,7 @@ and the entry moves to the Divergences section.
 ### 1. Waveform-similarity window: asymmetric `+1` upper endpoint
 
 - **Where:** DP waveform-similarity cost kernel (`voicekit.yaga` sub-piece 1);
-  reference `dypsagoi.m`, `wavix` definition.
+  the reference detector, `wavix` definition.
 - **What the reference does:** the cross-correlation window is
   `wavix = -floor(nxc/2) : floor(nxc/2)+1` — asymmetric, one extra sample on the
   right (e.g. `-80..81`, 162 samples, at 16 kHz).
@@ -102,7 +102,7 @@ and the entry moves to the Divergences section.
 ### 2. Waveform-similarity `(nx2-1)/(nx2-2)` bias factor
 
 - **Where:** DP waveform-similarity cost kernel (`voicekit.yaga` sub-piece 1);
-  reference `dypsagoi.m`, `q_cas` computation.
+  the reference detector, `q_cas` computation.
 - **What the reference does:** the normalized cross-correlation is scaled by
   `-0.5*(nx2-1)/(nx2-2)`; the `(nx2-1)/(nx2-2)` factor exists only to match a bug
   in a superseded helper (`swsc`). The reference's own revision history lists
@@ -127,7 +127,7 @@ and the entry moves to the Divergences section.
 
 ### 3. Penultimate-candidate traceback force
 
-- **Where:** DP traceback (`voicekit.yaga` sub-piece 3); reference `dypsagoi.m`,
+- **Where:** DP traceback (`voicekit.yaga` sub-piece 3); the reference detector,
   start of the traceback.
 - **What the reference does:** instead of tracing back from the best
   end-of-spurt node (`f_fb(Ncand+1)`), it forces acceptance of the penultimate
@@ -168,8 +168,8 @@ and the entry moves to the Divergences section.
 
 ### 4. SWT one-sample alignment offset (`swtalign`)
 
-- **Where:** stationary wavelet transform (`voicekit.yaga.swt`); reference
-  `dypsagoi.m`, `swtalign` subfunction.
+- **Where:** stationary wavelet transform (`voicekit.yaga.swt`); the reference
+  detector, `swtalign` subfunction.
 - **Category:** *deliberate departure from a textbook/library standard*, not a
   self-flagged bug. Stock MATLAB `swt` (and `PyWavelets`' SWT) keep the
   coefficients with a `lf+1` alignment; `swtalign` uses `lf`, shifting the
@@ -194,7 +194,7 @@ and the entry moves to the Divergences section.
 ### 5. GOI post-processing pairing (`postGOI`)
 
 - **Where:** GOI post-processing in `voicekit.yaga.detector` (`_goi_postprocess`);
-  reference `dypsagoi.m`, the `postGOI` block. The unresolved bug already
+  the reference detector, the `postGOI` block. The unresolved bug already
   acknowledged in [DESIGN.md](DESIGN.md) §1.
 - **What the reference does:** after the GOI dynamic program produces opening
   candidates, `postGOI` tries to enforce strict `GCI-GOI-GCI-GOI` alternation. It
@@ -235,7 +235,7 @@ and the entry moves to the Divergences section.
 ### 6. NAQ silent IEEE division when `dpeak == 0`
 
 - **Where:** `voicekit.features.flow` (`flow_statistics`), the `naq` division
-  `fac / (dpeak * t_time)`; reference `extractVoiceFeatures.m`, the per-cycle `else`
+  `fac / (dpeak * t_time)`; the reference feature-extraction pipeline, the per-cycle `else`
   branch.
 - **What the reference does:** when a cycle *has* an open phase (`O1 != 0`) but its
   flow derivative grazes zero at the minimum (`dpeak = -min(uuseg) == 0`), MATLAB
@@ -346,7 +346,7 @@ path, to make going and finding it deliberate rather than incidental.
 ### C4. Feature timing: the `O1==0` no-open-phase zeroing
 
 - **Where:** `voicekit.features.timing` (`timing_statistics`, the `O1==0` branch);
-  reference `extractVoiceFeatures.m`, the per-cycle loop. Subsumes the flow group's
+  the reference feature-extraction pipeline, the per-cycle loop. Subsumes the flow group's
   deferred note: this one branch governs **five** features at once.
 - **What the reference does:** when `openclosetimings` finds no open phase
   (`openPeriods` returns no rising edge, so `O1==0`), the reference zeroes the cycle's
@@ -372,8 +372,8 @@ path, to make going and finding it deliberate rather than incidental.
 
 ### C5. Spectral features: the `number_partials <= 1` degenerate guard
 
-- **Where:** `voicekit.features.spectral` (`spectral_params`, the guard); reference
-  `extractVoiceFeatures.m`, `specParam`.
+- **Where:** `voicekit.features.spectral` (`spectral_params`, the guard); the reference
+  feature-extraction pipeline, `specParam`.
 - **What the reference does:** `number_partials = floor(harmonic_limit/f0)` counts
   the harmonics below 3000 Hz. When `number_partials <= 1` (at most H1 below the
   limit) both features return a **literal `0`** — not NaN. This guards the
@@ -498,12 +498,12 @@ stage-isolated parity and composition *sanity*, but not composition *exactness*.
   read-only), never accepted, so no injection seam exists. The limitation stands as
   documented instead.
 - **Possible root cause — reference misconfiguration, not an intrinsic 8 kHz limit
-  (validation-phase, filed not chased):** `iaif.m` note 6 recommends `p=8; g=2; r=8`
-  at 8 kHz, but `dypsagoi.m` calls `iaif(s, fs, 20, 4, 20, 1)` at **every** rate — a
+  (validation-phase, filed not chased):** the IAIF reference (note 6) recommends `p=8; g=2; r=8`
+  at 8 kHz, but the reference detector calls IAIF as `iaif(s, fs, 20, 4, 20, 1)` at **every** rate — a
   20th-order vocal-tract LPC over a 4 kHz band at 8 kHz. That over-ordering is a
   plausible ill-conditioning route to the NaN residual tail this fixture works around,
   which would make F1 a *reference-configuration* artifact rather than a fundamental
-  8 kHz failure. The port faithfully mirrors dypsagoi's 20/4/20 at all rates
+  8 kHz failure. The port faithfully mirrors the reference detector's 20/4/20 at all rates
   (`YagaConfig._default_iaif_config`); revisiting the 8 kHz order is validation-phase
   work, not this milestone's.
 
@@ -511,9 +511,9 @@ stage-isolated parity and composition *sanity*, but not composition *exactness*.
 
 ## Feature observations — a developing reference
 
-The voice-feature reference (`vsaTools/extractVoiceFeatures.m`) replicates several
+The voice-feature reference pipeline replicates several
 papers (Patel 2011, Laukkanen 1996, Alku for NAQ) and is at an earlier
-developmental stage than `dypsagoi.m` — it likely carries small unironed issues.
+developmental stage than the reference detector — it likely carries small unironed issues.
 The port **matches it exactly** (golden-master parity is the only gate); these
 entries catalogue where the reference diverges from a published definition, sorted
 by whether the divergence is an *explained convention* or looks like an *unironed
@@ -524,8 +524,8 @@ surfaces each one.
 
 ### V1. F0 uses `fs/(period-1)`, not `fs/period`
 
-- **Where:** `voicekit.features.framework` (`cycle_framework`); reference
-  `extractVoiceFeatures.m`, the per-cycle loop.
+- **Where:** `voicekit.features.framework` (`cycle_framework`); the reference
+  feature-extraction pipeline, the per-cycle loop.
 - **What the reference does:** the period is `T = len(nn) - 2` where `nn` is the
   inclusive sample range of a cycle, and `f0 = fs/T`. For an interior cycle spanning
   `period` samples between consecutive GCIs, `len(nn) = period + 1`, so `T = period - 1`
@@ -541,8 +541,8 @@ surfaces each one.
 
 ### V2. QOQ divides a duration by an index: `qoq = (C2-O2)/O2`
 
-- **Where:** `voicekit.features.timing` (`timing_statistics`); reference
-  `extractVoiceFeatures.m`, the per-cycle loop.
+- **Where:** `voicekit.features.timing` (`timing_statistics`); the reference
+  feature-extraction pipeline, the per-cycle loop.
 - **What the reference does:** the quasi-open quotient is
   `qoq = (C2-O2)/O2`, where `O2`/`C2` are the start/end **sample indices** of the
   quasi-open phase within the cycle. The numerator `C2-O2` is the quasi-open
@@ -575,8 +575,8 @@ surfaces each one.
 
 ### V3. H1-H2 and HRF are stored crossed (the wrong feature under each name)
 
-- **Where:** `voicekit.features.spectral` (`spectral_statistics`); reference
-  `extractVoiceFeatures.m`, the `specParam` call site.
+- **Where:** `voicekit.features.spectral` (`spectral_statistics`); the reference
+  feature-extraction pipeline, the `specParam` call site.
 - **What the reference does:** `specParam` returns `[hrf, h1h2]` (in that order),
   correctly computed. The caller assigns them under **swapped names**:
   ```
@@ -610,8 +610,8 @@ surfaces each one.
 
 ### V4. Harmonic bins read at integer indices despite the `T+2` segment length
 
-- **Where:** `voicekit.features.spectral` (`spectral_params`); reference
-  `extractVoiceFeatures.m`, `specParam`.
+- **Where:** `voicekit.features.spectral` (`spectral_params`); the reference
+  feature-extraction pipeline, `specParam`.
 - **What the reference does:** `oa = abs(fft(useg))/T` is taken over `useg`, which is
   `len(nn) = T+2` samples long (the `T = len(nn)-2` convention — see V1). The
   harmonics are then read at **integer FFT bins** — `oa(2:np+1)` treats bin `k` as
@@ -1373,39 +1373,39 @@ not *whether*; the decision is ratified and is not re-opened here.
 `vuvMeasurements.m` — the five Atal-Rabiner features we golden-mastered
 (VUV7) — and then diverges completely.
 
-#### C — `voicedSegments.m` (unsupervised, per-utterance GMM)
+#### C — the unsupervised per-utterance GMM voicing detector
 
 End-to-end: mean-subtract and peak-normalize the signal → `vuvMeasurements`
 (32 ms / 10 ms / `nar`=16) → **`gaussmix(FM,[],[],3,'v')`: an unsupervised
 3-component GMM fit to the input signal's *own* feature matrix** — there is no
 training corpus at all, C refits per utterance → heuristic component
 identification (lowest mean `Es` = silence; of the remaining two, lower mean
-`Nz` = voiced, higher = unvoiced) → `gmLik` → per-frame argmax → labels
+`Nz` = voiced, higher = unvoiced) → the GMM-likelihood step → per-frame argmax → labels
 {1 = silence, 2 = unvoiced, 3 = voiced} → `medfilt1(vus,3)` on the **label
 sequence** ("get rid of spurious frames" — see the correction note below) →
 expansion of frame labels to per-sample labels. **C is live but uncaptured:**
-`weightedGIF.m` and `testOnVariousData.m` call it; no golden capture covers it.
+the reference weighted-GIF driver and the reference multi-file driver call it; no golden capture covers it.
 
-#### E — `vusDet.m` (supervised, trained Mahalanobis minimum-distance)
+#### E — the supervised Mahalanobis minimum-distance voicing detector
 
 End-to-end: `vuvMeasurements` → Mahalanobis distance from each frame's feature
 vector to three class centroids (`m` 3×5, `C` 5×15, one 5×5 covariance per
 class) → minimum-distance assignment → labels {−1 = unvoiced, 0 = silence,
 1 = voiced}. **E is the paper's own decision rule** (Atal & Rabiner Eq. (10),
 minimum Mahalanobis distance with per-class covariance — VUV10), where C has
-no paper basis. Its parameters come from `getVUSparameters.m` → `trainTimit.m`:
+no paper basis. Its parameters come from the VUS parameter loader → the TIMIT training routine:
 **supervised training on TIMIT** — reads SPHERE `.wav` via `readsph`, reads the
-paired `.phn` phone labels, `vusLab.m` maps phones to {s, u, v} (vowels,
+paired `.phn` phone labels, the phone-to-label mapper maps phones to {s, u, v} (vowels,
 semivowels/glides, nasals, and the voiced fricatives `v`/`dh`; explicitly "No
 Stops or Affricates", so voiced stops are labelled unvoiced), partitions frames
 by label, and takes per-class mean and covariance. **E is orphaned:** nothing
-in the prior research code calls `vusDet.m`.
+in the prior research code calls the supervised detector.
 
 #### Why they were never reconciled (DESIGN §9 step 7's premise, from source)
 
 They disagree on **everything below the feature layer**, not on one axis:
 
-| | C (`voicedSegments.m`) | E (`vusDet.m`) |
+| | C (the unsupervised GMM detector) | E (the supervised min-distance detector) |
 |---|---|---|
 | decision rule | unsupervised GMM + likelihood argmax | trained Mahalanobis min-distance (the paper's Eq. (10)) |
 | training | **none** — refits the input signal per utterance | supervised, on TIMIT via `.phn` labels |
@@ -1413,7 +1413,7 @@ They disagree on **everything below the feature layer**, not on one axis:
 | label encoding | {1, 2, 3} = sil, unvoiced, voiced | {−1, 0, 1} = unvoiced, sil, voiced |
 | post-processing | 3-frame median filter on the label contour | none |
 | output | frame labels **and** per-sample labels | frame labels only |
-| status | live (called by `weightedGIF.m`) but uncaptured | orphaned (no caller) |
+| status | live (called by the reference weighted-GIF driver) but uncaptured | orphaned (no caller) |
 
 **This is the fact that makes step 7 define-the-target at the decision layer:**
 a decision oracle would have had to be C or E, and they are two mutually
@@ -1434,13 +1434,13 @@ comparisons (golden master at rtol 1e-10…1e-12; synthetic known-value). A stag
 whose output varies run-to-run on identical input **cannot be golden-mastered
 and cannot anchor a regression test at all**. C's identification heuristic is
 independently fragile by its own record: three of the five corpus notes in
-`vusCentroidValues.txt` read "all voiced (no sil)", i.e. a 3-component GMM fit
+the centroid record file read "all voiced (no sil)", i.e. a 3-component GMM fit
 to data containing one class, where "lowest mean `Es` = silence" necessarily
 mislabels.
 
 **E — rejected on licensing (decisive) and generalization (backstop).**
 
-- **(b) Licensing, categorical.** E's only parameter source is `trainTimit.m`,
+- **(b) Licensing, categorical.** E's only parameter source is the TIMIT training routine,
   which trains on **TIMIT** (LDC-distributed under licence). No trained
   parameter set is stored in the repo at all, so shipping E would mean
   re-deriving from TIMIT — re-entering the same chain. **A parameter set whose
@@ -1456,19 +1456,19 @@ mislabels.
   fixtures are synthetic. **(b) settles the option on the table; (a) shuts the
   door (b) leaves open.** Ratified in that order.
 
-#### `vusCentroidValues.txt` — what it actually is (correction)
+#### The centroid record file — what it actually is (correction)
 
 The reasoning history recorded this file as E's shipped trained centroids from
 non-redistributable clinical corpora. **Re-read from source, that attribution is
 wrong in its specifics**, though it does not disturb the decision:
 
 - **Nothing reads it.** No code path in the prior research code opens it;
-  `vusDet.m` takes `m`, `C` as arguments, and their only producer is
-  `trainTimit.m`. It is a lab-notebook record, not a shipped parameter set.
+  the supervised detector takes `m`, `C` as arguments, and their only producer is
+  the TIMIT training routine. It is a lab-notebook record, not a shipped parameter set.
 - **It is structurally incapable of driving E:** it stores weights and 3×5 means
-  only — **no covariances** — and `vusDet.m` requires all three 5×5 class
+  only — **no covariances** — and the supervised detector requires all three 5×5 class
   covariances.
-- **It cannot be `trainTimit.m` output:** that function requires TIMIT `.phn`
+- **It cannot be the TIMIT training routine's output:** that function requires TIMIT `.phn`
   label files and SPHERE `.wav`, and none of the five corpora named is TIMIT.
   Its structure (a weight triple summing to 1, plus three 5-D means) matches
   `gaussmix`'s returns, so it is a record of **C's** per-corpus GMM fits.
@@ -1476,16 +1476,16 @@ wrong in its specifics**, though it does not disturb the decision:
   `MGH` (Sil-Voi-Sil), `InriaData` (all voiced, no sil), `Talromur` (mixed),
   `vpd` (all voiced, no sil), `OpenGlot II` (all voiced).
 - **Its rows are in arbitrary order.** They are `gaussmix` components, whose
-  ordering is a fit artifact — which is exactly why `voicedSegments.m` carries
+  ordering is a fit artifact — which is exactly why the unsupervised GMM detector carries
   its "Logic to determine which mixture component is which" block.
 
 **The divergence numbers, re-read rather than transcribed.** The ~7× (`Nz`) and
 ~24 dB (`Es`) figures carried in the reasoning history **reproduce exactly —
-7.10× and 23.7 dB — but only under the reading "row 3 = voiced"** (E's `vusDet`
-convention). **That reading is refuted by the file's own content:** it makes
+7.10× and 23.7 dB — but only under the reading "row 3 = voiced"** (the supervised
+detector's convention). **That reading is refuted by the file's own content:** it makes
 Talromur's voiced centroid `Nz` = 156.05 (≈2.4 kHz dominant — fricative, not
 voiced) while the same corpus carries a row at `Nz` = 24.03 (≈375 Hz — voiced).
-Under `voicedSegments.m`'s own identification logic — the logic that actually
+Under the unsupervised GMM detector's own identification logic — the logic that actually
 consumes `gaussmix` output — the voiced centroids diverge by **2.58× on `Nz` and
 8.9 dB on `Es`**, and Talromur's `Nz` = 156.05 falls out as unvoiced, which is
 internally coherent. **The defensible figures are ~2.6× and ~8.9 dB.**
@@ -1662,7 +1662,8 @@ method routes through**, so it is pinned first.
   (covariance.py), minimising `sum w * resid^2` — the error weighted by `weights`
   *linearly*. Therefore a caller reproducing a `v_lpccovar` run with reference weight
   vector `W` must pass **`weights = W**2`**, not `W`. Every step-8 method
-  (`weightsForLP.m` → `weightedlpc.m` → `lpccovar(sp, nar, T, w)`) produces such a
+  (the reference weighting constructor → the reference weighted-LP solve wrapper →
+  `lpccovar(sp, nar, T, w)`) produces such a
   `W` and feeds it to the reference this way, so all of them inherit this convention.
 - **Why it had never been checked (the mechanism, not just the conclusion).** The
   pre-step-8 weighted-covariance tests used only uniform weights
@@ -1705,8 +1706,8 @@ method routes through**, so it is pinned first.
   reference AR to **6.66e-16 (machine-eps)** on both paths; `weights = W` is off by
   0.069 (plain) / 0.040 (dc_offset). **Confirmed branch-independent**: both the plain
   and `dc_offset` branches of `v_lpccovar` apply the weight identically (`dm.*w`), so
-  the `W^2` convention holds in both — the `dc_offset` path is the one `weightedlpc.m`
-  actually calls (`[ar,ee,dc]=lpccovar(...)`, the same three-output form VUV's
+  the `W^2` convention holds in both — the `dc_offset` path is the one the reference
+  weighted-LP solve wrapper actually calls (`[ar,ee,dc]=lpccovar(...)`, the same three-output form VUV's
   `alp1`/`Ep` used). (The AR *values* differ between the plain and dc paths — the dc
   path fits a DC term jointly — which is the model changing, not the convention.)
 - **Pinned by:** `tests/test_lpc.py::TestWeightedCovarianceConvention` (machine-eps,
@@ -1714,7 +1715,7 @@ method routes through**, so it is pinned first.
   Convention noted at the `sqrt(w)` site and in the docstring of `covariance.py`.
 - **Status:** established convention, pinned by golden master — not a divergence
   (the port matches the reference when passed `W^2`). Step-8 method implementations
-  must square the `weightsForLP`-style weight vector before calling `lpc_covar`.
+  must square the reference weighting constructor's weight vector before calling `lpc_covar`.
 
 ### GIF2. Closed-phase design fork: locked to the reference (full-frame solve + 0/1 weight mask); the interval-restricted alternative is deferred and item-9-gated
 
@@ -1724,11 +1725,11 @@ recorded as a named, deferred option reopenable only against evidence that does 
 exist — not carried open into implementation.
 
 - **What the reference does.** The reference closed-phase method does **not** restrict
-  the LPC solve to the closed phase. `weightedlpc.m` solves over the full analysis
+  the LPC solve to the closed phase. The reference weighted-LP solve wrapper solves over the full analysis
   frame (`nar = ceil(fs/1000) = 20` at `fs = 20000`, frame length ~640 samples from the
   32 ms / 16 ms grid), and the closed phase enters only as a **0/1 weight** that zeros
   the open phase and a `cpDelay`-long return phase after each GCI. Verbatim, the mask
-  construction (`Toolbox/weightsForLP.m`, `case 'cp'`):
+  construction (the reference weighting constructor, `case 'cp'`):
   ```matlab
   w=ones(1,nsp);
   ...
@@ -1824,18 +1825,18 @@ not folded into it.**
   GIF5. The characterization above stands unchanged.
   Cross-ref C8, GIF2 (the interval-restricted alternative reaches this too).
 
-### GIF4. Two-revision Gaussian weighting: current `Toolbox/weightsForLP.m` is authoritative; `weightsForLP_old.m` is the superseded predecessor (DESIGN §5's missing `-0.5`, located)
+### GIF4. Two-revision Gaussian weighting: the current reference weighting constructor is authoritative; its superseded predecessor is the earlier revision (DESIGN §5's missing `-0.5`, located)
 
-Established 2026-07-18 from source (the parameter pins in `projParam.m`), before any
+Established 2026-07-18 from source (the parameter pins in the reference parameter file), before any
 Python weighting function exists to fit to — rule 1 clean. The authority is determined
-by which file `projParam.m`'s parameters fit, **not** by matching Python output to a
+by which file the reference parameter file's parameters fit, **not** by matching Python output to a
 revision.
 
 - **The `rgauss` difference is DESIGN §5's named example, now located.** Verbatim:
-  - superseded (`weightsForLP_old.m`, `case 'rgauss'`): `sig2=sig^2;` then
+  - superseded (the earlier weighting constructor, `case 'rgauss'`): `sig2=sig^2;` then
     `gg = gg + kappa*exp(-(nn-gci(ii)).^2/sig2);` — i.e. `exp(-x²/σ²)`, **missing the
     `-0.5`** (not a proper Gaussian).
-  - current (`Toolbox/weightsForLP.m`, `case 'rgauss'`): `sig2=sig^2;` then
+  - current (the reference weighting constructor, `case 'rgauss'`): `sig2=sig^2;` then
     `gg = gg + kappa*exp(-0.5*(nn-gci(ii)).^2/sig2);` — i.e. `exp(-0.5·x²/σ²)`, a proper
     Gaussian.
   This is exactly the "missing `-0.5` factor in a Gaussian weighting exponent, introduced
@@ -1849,11 +1850,11 @@ revision.
   - `cp`: current is the `cpDelay` loop (GIF2 quote); old is a `cumsum`/`cpFrac`
     construction (`w(adgci)=1; w(goi)=-1; w=cumsum(w)` with a `cpFrac`-based non-voiced
     fill).
-- **Authority evidence (from source, pre-Python).** `projParam.m` pins parameters that
+- **Authority evidence (from source, pre-Python).** The reference parameter file pins parameters that
   fit **only** the current file:
   - `case 'cp'`: sets `cpDelay` but **not** `cpFrac` — and comments the latter out
     (`%par.wpar.cpFrac = 0.8;`). The old `cp` *requires* `cpFrac`; the current `cp`
-    comments it out (`%cpFrac = par.cpFrac;`). So `projParam` fits the current `cp`.
+    comments it out (`%cpFrac = par.cpFrac;`). So the reference parameter file fits the current `cp`.
   - `case 'agauss'`: `kappa = 0.99; alpha = 0.1; r = 2;` with the comment "parameters
     recommended in *Zalazar et al, Symmetric and asymmetric Gaussian weighted linear
     prediction for voice inverse filtering, 2024*". These are the current `agauss`'s
@@ -1871,7 +1872,7 @@ revision.
   (assert the decomposition, not just the final value) carries more weight than usual.
 - **Status:** authority established (current authoritative, old superseded); `-0.5`
   example located. Ledgered ahead of the Gaussian method implementation; the capture
-  target is the current `Toolbox/weightsForLP.m`.
+  target is the current reference weighting constructor.
 
 ### GIF5. Rank-degeneracy policy decided: skip-frame — a deficient frame's cycles are masked NaN. A named departure where the reference has no defined value
 

@@ -9,7 +9,7 @@ segmentation, the period convention, the voicing test -- is validated first and
 inherited by the rest. `iter_cycle_segments` single-sources that segmentation so
 the groups cannot drift on the trim/period conventions.
 
-Reference: ``vsaTools/extractVoiceFeatures.m`` (the per-cycle loop);
+Reference: the reference feature-extraction pipeline (the per-cycle loop);
 reimplemented from the source, not ported.
 """
 

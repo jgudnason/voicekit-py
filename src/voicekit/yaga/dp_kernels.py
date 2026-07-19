@@ -18,7 +18,7 @@ References:
     TASLP 15(1), 34-43.
 
     Reference implementation: the ``q_cas`` and ``f_cp`` computations in the DP
-    loop of the VOICEBOX-bundled ``dypsagoi.m``. Reimplemented from the algorithm
+    loop of the reference GCI/GOI detector. Reimplemented from the algorithm
     description, not ported. Two reproduced reference quirks are flagged inline
     and recorded in REFERENCE_NOTES.md.
 """

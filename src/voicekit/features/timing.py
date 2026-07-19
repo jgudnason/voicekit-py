@@ -34,7 +34,7 @@ not corrected; see REFERENCE_NOTES.md "Feature observations" V2. When no open
 phase is detected (``O1==0``) the reference zeroes cq/qoq (and the flow group);
 no fixture cycle triggers it -- see REFERENCE_NOTES.md "Coverage gaps" C4.
 
-Reference: ``vsaTools/extractVoiceFeatures.m`` (``openclosetimings`` /
+Reference: the reference feature-extraction pipeline (``openclosetimings`` /
 ``openPeriods``); reimplemented from the source, not ported.
 """
 

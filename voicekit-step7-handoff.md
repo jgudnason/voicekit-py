@@ -7,7 +7,7 @@ line of MATLAB voice-analysis research code — the DYPSA/YAGA GCI-GOI detector,
 and per-cycle voice-source feature extraction. It is **clean-room**: the domain
 algorithms are implemented from published descriptions and from *captured numerical
 behaviour*, never ported line-by-line from the GPL'd reference (notably Mike Brookes's
-VOICEBOX and the jointly-copyrighted `dypsagoi.m`), so the result is an independent
+VOICEBOX and the jointly-copyrighted DYPSA method), so the result is an independent
 work rather than a derivative of GPL source. The reference is used only as a
 golden-master oracle: MATLAB outputs are captured and the Python is validated
 bit-exact / machine-ε against them. Development is human-led and human-reviewed —
@@ -117,7 +117,7 @@ The four joins, all asserted from the public API:
 ## Roadmap position
 
 Steps 1–6 are done (scaffolding; I/O & framing; LPC; IAIF; YAGA GCI/GOI;
-extractVoiceFeatures). **Step 7 (VUV / voicing detection) is next** — one unified,
+voice-feature extraction). **Step 7 (VUV / voicing detection) is next** — one unified,
 well-tested approach, and per DESIGN.md it also **closes DYPSA's own bug #5** ("should
 have an integrated voiced/voiceless detector"). After it: step 8 (alternative
 weighted-LP GIF methods — closed-phase, AME, Gaussian weighting), step 9 (LF-model
@@ -163,7 +163,7 @@ release).
 ## Ledger pointer
 
 C6 (short-cycle empty DC-shift window), C7 (`dpeak ≤ 0`), the naq `dpeak==0` IEEE-shim
-(Reproductions entry), and the F1-misconfiguration lead (dypsagoi's fixed 20/4/20 at
+(Reproductions entry), and the F1-misconfiguration lead (the reference detector's fixed 20/4/20 at
 8 kHz) all live in `REFERENCE_NOTES.md` — read them there; they are not duplicated here.
 The V1–V5 feature-observation ledger and C1–C7 coverage gaps are likewise in
 REFERENCE_NOTES.

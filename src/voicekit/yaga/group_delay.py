@@ -19,7 +19,7 @@ References:
     IEEE TASLP 15(1), 34-43 (the group-delay / phase-slope epoch extraction).
 
     Reference implementation: the ``xewgrdel`` subfunction of the
-    VOICEBOX-bundled ``dypsagoi.m`` (and VOICEBOX ``zerocros`` for the
+    reference GCI/GOI detector (and VOICEBOX ``zerocros`` for the
     interpolated crossing search). Reimplemented from the algorithm
     description, not ported.
 """

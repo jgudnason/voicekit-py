@@ -36,9 +36,9 @@ class IaifConfig:
     The three LPC orders (the reference's letters ``p``, ``g``, ``r`` -- first
     vocal-tract, glottal-source, second vocal-tract) are **required**: there is no
     single fs-independent correct order, so a default would silently mismatch the
-    caller's rate. For reference, ``iaif.m``'s function-signature arg-defaults are
-    10/4/10, but the only in-project caller (``dypsagoi`` via `YagaConfig`) fixes
-    **20/4/20 at every rate**, and Alku/Mark's presets (``iaif.m`` note 6) are
+    caller's rate. For reference, the IAIF reference's function-signature arg-defaults are
+    10/4/10, but the only in-project caller (the YAGA detector via `YagaConfig`) fixes
+    **20/4/20 at every rate**, and Alku/Mark's presets (the IAIF reference, note 6) are
     8/2/8 at 8 kHz and 20/4/20 at 20 kHz. Pick per your rate and cite the source.
     """
 

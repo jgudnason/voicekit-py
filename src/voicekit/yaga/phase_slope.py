@@ -23,7 +23,7 @@ References:
     IEEE TASLP 15(1), 34-43.
 
     Reference implementation: the ``psp`` subfunction (and its ``zcr``/``zcrp``
-    turning-point finder) of the VOICEBOX-bundled ``dypsagoi.m``.
+    turning-point finder) of the reference GCI/GOI detector.
     Reimplemented from the algorithm description, not ported.
 """
 

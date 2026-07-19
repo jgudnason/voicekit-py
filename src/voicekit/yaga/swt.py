@@ -26,7 +26,7 @@ References:
     IEEE TASLP 15(1), 34-43.
 
     Reference implementation for the alignment convention: the ``swtalign``
-    subfunction of the VOICEBOX-bundled ``dypsagoi.m``. Reimplemented here
+    subfunction of the reference GCI/GOI detector. Reimplemented here
     from the à-trous algorithm description, not ported.
 """
 

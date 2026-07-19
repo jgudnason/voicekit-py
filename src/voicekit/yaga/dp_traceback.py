@@ -15,7 +15,7 @@ References:
     TASLP 15(1), 34-43.
 
     Reference implementation: the traceback of ``dpgci`` and the peak-refinement
-    (using VOICEBOX ``v_findpeaks``) of ``dypsagoi.m``. Reimplemented from the
+    (using VOICEBOX ``v_findpeaks``) of the reference GCI/GOI detector. Reimplemented from the
     algorithm description, not ported.
 """
 

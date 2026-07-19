@@ -11,7 +11,7 @@ called out explicitly below.
 
 References:
     P. A. Naylor, A. Kounoudes, J. Gudnason & M. Brookes (2007), DYPSA, IEEE
-    TASLP 15(1), 34-43. Reference: ``dypsagoi.m``, reimplemented from the
+    TASLP 15(1), 34-43. Reference: the reference GCI/GOI detector, reimplemented from the
     algorithm description.
 """
 
@@ -42,7 +42,8 @@ _GOI_SENTINEL = -1.0
 
 
 def _default_iaif_config() -> IaifConfig:
-    # dypsagoi calls iaif(s, fs, 20, 4, 20, 1): vocal-tract order 20, glottal 4.
+    # the reference detector calls IAIF as iaif(s, fs, 20, 4, 20, 1):
+    # vocal-tract order 20, glottal 4.
     return IaifConfig(vt_order1=20, glottal_order=4, vt_order2=20)
 
 

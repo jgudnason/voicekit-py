@@ -253,8 +253,9 @@ class TestWeightedCovarianceConvention:
         np.testing.assert_allclose(got, self.GOLD["ar_plain"], atol=1e-12)
 
     def test_w_squared_reproduces_reference_dc_offset(self) -> None:
-        # The path the step-8 methods actually call: weightedlpc.m invokes the
-        # three-output [ar,ee,dc]=lpccovar(sp,nar,T,w) form. Same W^2 convention.
+        # The path the step-8 methods actually call: the reference weighted-LP solve
+        # wrapper invokes the three-output [ar,ee,dc]=lpccovar(sp,nar,T,w) form.
+        # Same W^2 convention.
         s, w, order = self._fixture()
         got = lpc_covar(s, order=order, weights=w**2, dc_offset=True).a
         np.testing.assert_allclose(got, self.GOLD["ar_dc"], atol=1e-12)

@@ -33,8 +33,8 @@ References:
     P. A. Naylor, A. Kounoudes, J. Gudnason & M. Brookes (2007), DYPSA, IEEE
     TASLP 15(1), 34-43.
 
-    Reference implementation: the ``dpgci`` forward loop of the VOICEBOX-bundled
-    ``dypsagoi.m``. Reimplemented from the algorithm description, not ported.
+    Reference implementation: the ``dpgci`` forward loop of the reference GCI/GOI
+    detector. Reimplemented from the algorithm description, not ported.
 """
 
 from dataclasses import dataclass, field

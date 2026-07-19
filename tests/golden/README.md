@@ -7,9 +7,10 @@ bug in an early stage can't cascade and mask a later stage's test, each
 stage's **input** is captured too, letting every Python stage be driven
 with MATLAB's own upstream output rather than with our own.
 
-The reference is the published GPL'd DYPSA detector
-(`vsaTools/YAGA/dypsagoi.m`, jointly copyrighted Kounoudes / Gudnason /
-Naylor / Brookes). Per the project's licensing stance (see `DESIGN.md`),
+The reference is the DYPSA GCI/GOI detector — the jointly-copyrighted DYPSA
+method (Kounoudes / Gudnason / Naylor / Brookes) that Mike Brookes's GPL'd
+VOICEBOX ships as `v_dypsa`, extended in the private reference tree. Per the
+project's licensing stance (see `DESIGN.md`),
 the Python code is a from-scratch reimplementation from the published
 algorithm, **not** a port of that source; these captures only pin the
 numerical target.
@@ -33,7 +34,7 @@ numerical target.
     optionally substituting a clean residual via `VK_OVERRIDE_UDASH`.
   - `capture_golden.py` — orchestrates instrument → run → convert to `.npz`.
   - `capture_features.py` / `capture_features.m` — a *black-box* capture of the
-    `vsaTools` `extractVoiceFeatures` outputs (step 6): the function is called
+    reference feature-extraction pipeline's outputs (step 6): the function is called
     directly and its returns saved, so none of the instrument/SHA machinery above
     applies. Reads `udash`/`gci`/`fs` from each fixture, adds the `feat_*` arrays.
   - `capture_wcovar.py` / `capture_wcovar.m` — a *black-box* capture of VOICEBOX
@@ -66,7 +67,7 @@ amounts 3 and 7).
 
 ### The 8 kHz fixture bypasses IAIF
 
-The reference MATLAB IAIF is unusable at 8 kHz: `iaif.m` zero-pads the last
+The reference MATLAB IAIF is unusable at 8 kHz: the IAIF reference zero-pads the last
 512 samples after its 1025-tap FIR highpass, and at an 8 kHz analysis-frame
 size (256 samples) that tail forms fully-zero LPC frames, so `lpcauto`'s
 `R(0)=0` divides by zero and the residual tail comes back NaN. This is
@@ -87,13 +88,13 @@ residual, not an IAIF output.
 ## Reproducing
 
 Requires MATLAB (+ Wavelet and Signal Processing toolboxes) and local
-checkouts of VOICEBOX and vsaTools. Paths come from environment variables —
+checkouts of VOICEBOX and the prior research code. Paths come from environment variables —
 never hardcoded in committed algorithm code:
 
 - `VOICEKIT_MATLAB` — MATLAB executable (default: local R2024b app path).
 - `VOICEKIT_VOICEBOX` — VOICEBOX directory (provides `lpcauto`, `lpcifilt`,
   `voicebox`/`v_voicebox` parameter store).
-- `VOICEKIT_VSATOOLS` — vsaTools directory (provides `iaif`, `dypsagoi`).
+- `VOICEKIT_VSATOOLS` — reference-tree directory (provides the IAIF and GCI/GOI-detector references).
 
 ```
 python tests/golden/capture/make_inputs.py     # only to regenerate inputs
@@ -188,9 +189,9 @@ validating the five weighted terms against `vus_dp_mycost` (unweighted, as
 captured — the reference divides each back out by its weight) and the
 closed-phase term against `aencost`.
 
-**Voice features** (step 6; from a black-box run of `vsaTools`
-`extractVoiceFeatures(u, uu, fs, gci)`, with `uu = udash`, `gci` the fixture's
-final GCIs, and the derived flow `u = filter(a, b, udash)` per `testSingleFile.m`
+**Voice features** (step 6; from a black-box run of the reference
+feature-extraction pipeline called as `(u, uu, fs, gci)`, with `uu = udash`, `gci` the fixture's
+final GCIs, and the derived flow `u = filter(a, b, udash)` per the reference single-file harness
 — `b = [1, -exp(-2π·10/fs)]`, `a = sqrt(1/sum(b²))`; this is *not*
 `iaif.glottal_flow`, which uses a different leak). Captured in the **raw
 reference form**: each feature array has length `len(gci)+1` — the reference

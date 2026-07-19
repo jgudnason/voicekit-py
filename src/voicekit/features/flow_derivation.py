@@ -1,7 +1,7 @@
 """Derive the glottal flow ``u`` from the IAIF flow derivative ``udash``.
 
-The reference feature pipeline (``vsaTools/testSingleFile.m``) does not feed the
-IAIF residual straight into ``extractVoiceFeatures``; it first integrates it into
+The reference feature pipeline (the reference single-file harness) does not feed the
+IAIF residual straight into the reference feature-extraction pipeline; it first integrates it into
 the flow with a gain-normalized leaky integrator::
 
     b = [1, -exp(-2*pi*f_preemph/fs)]
@@ -16,7 +16,7 @@ the opposite operation. Kept out of `extract_voice_features` because the referen
 passes the already-derived ``u`` in (and the golden ``feat_u`` capture is fed to the
 feature groups directly).
 
-Reference: ``vsaTools/testSingleFile.m``; reimplemented, not ported.
+Reference: the reference single-file harness; reimplemented, not ported.
 """
 
 import numpy as np

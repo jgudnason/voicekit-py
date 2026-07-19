@@ -5,7 +5,7 @@
 A comprehensive, open-source voice analysis toolbox in Python, implemented from
 first principles. This is a from-scratch Python successor to a ~20-year line of
 MATLAB research code (Imperial College DYPSA work, 2003–2009, later reworked and
-distilled into `vsaTools`). The goal is a well-tested, cleanly licensed, publicly
+distilled into a private working tree of prior research code). The goal is a well-tested, cleanly licensed, publicly
 redistributable library — not a port, but a rewrite grounded in the published
 algorithm descriptions.
 
@@ -15,10 +15,11 @@ Why rewrite instead of port:
   (DYPSA's GOI post-processing step). Reference quirks the port reproduces for
   golden-master parity — including that GOI bug — are tracked in
   [REFERENCE_NOTES.md](REFERENCE_NOTES.md).
-- Some of the existing code (`dypsagoi.m`) is bundled with Mike Brookes's
-  GPL'd VOICEBOX toolbox and jointly copyrighted (Kounoudes/Gudnason/Naylor/
-  Brookes). Reimplementing from the published algorithm rather than porting
-  that source is what makes an Apache-2.0 release of an algorithm the
+- Some of the existing code implements the DYPSA GCI/GOI method, which Mike
+  Brookes's GPL'd VOICEBOX toolbox ships as the jointly-copyrighted `v_dypsa`
+  (Kounoudes/Gudnason/Naylor/Brookes); the reference detector is a private
+  extension of it. Reimplementing from the published algorithm rather than
+  porting that source is what makes an Apache-2.0 release of an algorithm the
   author co-invented actually clean.
 - Starting fresh is a chance to fix known design smells: global mutable
   parameter stores (`voicebox()`), copy-pasted files with silent numerical
@@ -82,7 +83,7 @@ voicekit-py/
     lpc/         # autocorrelation (Levinson-Durbin) + weighted covariance LPC
     iaif/        # Iterative Adaptive Inverse Filtering
     yaga/        # DYPSA-derived GCI/GOI detection
-    features/    # extractVoiceFeatures equivalent
+    features/    # reference feature-extraction pipeline equivalent
     vuv/         # voiced/unvoiced detection
     gif/         # alternative weighted-LP GIF methods (cp, ame, gauss variants)
     lfmodel/     # Liljencrants-Fant model fitting
@@ -141,7 +142,7 @@ Golden-master parity and corpus evaluation answer different questions, and the
 project needs both. Parity asks "does the Python compute the same thing as the
 reference MATLAB?" — bit-exact, one reference, and the primary porting defense.
 It cannot, even in principle, tell us whether the algorithm is any *good*:
-`dypsagoi.m` is an implementation with documented bugs (see `REFERENCE_NOTES.md`),
+the reference GCI/GOI detector is an implementation with documented bugs (see `REFERENCE_NOTES.md`),
 not ground truth, so a faithful port reproduces its misses and scores PASS while
 saying nothing about detection quality. The evaluation methodology from the DYPSA
 and YAGA papers — larynx-cycle hit rate, miss rate, false-alarm rate,
@@ -151,7 +152,7 @@ that measures quality.
 This gives two evaluation tracks, deliberately sequenced:
 
 - **Track A — the scoring harness, against the reference implementation.** Score
-  Python output against `dypsagoi.m` output run through the papers' hit/miss/FA
+  Python output against the reference detector's output run through the papers' hit/miss/FA
   machinery. On the golden-master fixtures this scores trivially perfect (the
   outputs are bit-identical by construction), which is exactly its value: it
   validates the *scoring instrument* against known-answer inputs before that
@@ -165,7 +166,7 @@ This gives two evaluation tracks, deliberately sequenced:
   truth on OpenGlot), reproducing the papers' accuracy figures as far as is
   achievable. Needs Track A's harness plus the ground-truth data. Its decisive
   capability is the side-by-side comparison — Python-vs-reference and
-  `dypsagoi.m`-vs-reference scored together — which isolates *port fidelity* from
+  reference-detector-vs-reference scored together — which isolates *port fidelity* from
   *algorithm quality*: identical scores prove the port is transparent (every miss
   is the algorithm's), divergence localizes a port artifact the golden master
   missed (a fixture-coverage gap; cf. the C-entries in `REFERENCE_NOTES.md`). This
@@ -181,7 +182,7 @@ continued YAGA work once the faithful port is done.
 
 ## 6. Licensing & attribution
 
-- Project-wide **Apache-2.0**, matching `vsaTools`, with public release as
+- Project-wide **Apache-2.0**, matching the prior research code's intended license, with public release as
   the explicit goal. LICENSE holds the verbatim license text; the copyright
   notice lives in NOTICE, per Apache convention.
 - Every algorithm module's docstring cites the originating paper(s).
@@ -268,12 +269,12 @@ inside the hot loops.
 4. **IAIF** — iterative adaptive inverse filtering. Needed standalone *and*
    as YAGA's internal residual source, so it has to land before step 5.
 5. **YAGA (GCI/GOI detection)** — the DYPSA-derived algorithm from
-   `dypsagoi.m`. The largest single milestone in the project: multiscale
+   the reference GCI/GOI detector. The largest single milestone in the project: multiscale
    wavelet product, group delay + phase-slope projection, N-best dynamic
    programming over pitch/cross-correlation/energy/slope costs, Frobenius
    norm energy term. Worth splitting into its own sub-milestones rather than
    one PR.
-6. **extractVoiceFeatures** — per-cycle voice source parameters (F0, MFDR,
+6. **Voice-feature extraction** — per-cycle voice source parameters (F0, MFDR,
    CQ, NAQ, QOQ, H1-H2/HRF, etc.), built on top of step 5's GCIs/GOIs and
    step 4's glottal flow output.
 7. **VUV/voicing detection** — one unified, well-tested approach, replacing

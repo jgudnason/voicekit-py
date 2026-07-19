@@ -31,7 +31,7 @@ When too few harmonics fall below ``harmonic_limit`` (``floor(harmonic_limit/f0)
 <= 1``, i.e. very high f0) the reference returns a literal ``0`` for both -- not
 NaN; no fixture cycle reaches it (REFERENCE_NOTES.md "Coverage gaps" C5).
 
-Reference: ``vsaTools/extractVoiceFeatures.m`` (``specParam``, "As implemented by
+Reference: the reference feature-extraction pipeline (``specParam``, "As implemented by
 Yu-Ren", and its caller); reimplemented from the source, not ported.
 """
 

@@ -21,7 +21,7 @@ gaps" C4). So this group gates on the shared ``O1`` too: an ``o1==0`` cycle keep
 and its division is skipped. The fixtures never take that branch, so the plain
 formulas reproduce them exactly.
 
-Reference: ``vsaTools/extractVoiceFeatures.m``; reimplemented, not ported.
+Reference: the reference feature-extraction pipeline; reimplemented, not ported.
 """
 
 from collections.abc import Sequence

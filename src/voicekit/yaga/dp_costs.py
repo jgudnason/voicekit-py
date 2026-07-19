@@ -25,7 +25,7 @@ References:
     glottal closure detection", IEEE Trans. Speech Audio Proc. 2, 258-265.
 
     Reference implementation: the ``frobfun``, ``fnrg`` and closed-phase code
-    of the VOICEBOX-bundled ``dypsagoi.m``. Reimplemented from the algorithm
+    of the reference GCI/GOI detector. Reimplemented from the algorithm
     descriptions, not ported.
 """
 

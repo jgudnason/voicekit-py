@@ -7,7 +7,7 @@ the open-phase detection ``O1``. This module computes all of that a single time 
 the ``useg``/``uuseg`` extraction, the one DC-shift, and ``O1`` cannot drift between
 groups, and so the seam has ``O1`` available to mask the degenerate cycles.
 
-Reference: ``vsaTools/extractVoiceFeatures.m`` (the per-cycle loop); reimplemented.
+Reference: the reference feature-extraction pipeline (the per-cycle loop); reimplemented.
 """
 
 from collections.abc import Sequence
