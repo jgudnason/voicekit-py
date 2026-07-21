@@ -140,10 +140,15 @@ def invalid_cycle_mask(
 
     Overlap (not GCI-membership) is the rule because the flow, not the GCI, is what
     a cycle's features are measured from: a cycle straddling the boundary of an
-    invalid frame draws corrupted flow and must be masked. This maps only the
-    *directly* corrupted ``uu`` span; note that ``u``'s de-emphasis IIR smears the
-    divergence forward (see the golden test), a forward taint this per-frame mask
-    does not chase -- flagged in REFERENCE_NOTES GIF5, not silently absorbed here.
+    invalid frame draws corrupted flow and must be masked.
+
+    This is the **local ``uu`` extent** -- the cycles whose *derivative* flow is
+    directly rank-deficient. It is NOT the mask the feature composition uses: the
+    features read ``u = de-emphasise(uu)``, whose IIR carries the divergence forward
+    to the signal end (GIF8), so `voicekit.features.apply_closed_phase_mask` masks
+    the wider **forward** extent (every cycle from the first invalid frame onward).
+    Use this primitive only for a ``uu``-only consumer; use the feature-layer
+    composition for anything reading ``u``. See REFERENCE_NOTES GIF5/GIF8.
     """
     gci = np.atleast_1d(np.asarray(gci, dtype=np.int64))
     n = result.uu.size

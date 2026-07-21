@@ -28,7 +28,8 @@ from voicekit.features.result import VoiceFeatures
 from voicekit.features.spectral import spectral_statistics
 from voicekit.features.timing import timing_statistics
 
-if TYPE_CHECKING:  # annotation only -- keeps the feature layer runtime-independent of vuv
+if TYPE_CHECKING:  # annotation only -- keeps the feature layer runtime-independent of vuv/gif
+    from voicekit.gif.closed_phase import ClosedPhaseResult
     from voicekit.vuv.decision import VoicingTrack
 
 # Features zeroed on a no-open-phase (O1==0) cycle, per the reference's degenerate
@@ -118,6 +119,49 @@ def apply_voicing_mask(
             reason[i] = "aperiodic"
 
     masked = reason != "voiced"
+    raw = {name: getattr(feats, name).copy() for name in _VOICING_MASK_SUBSET}
+    apply_cycle_mask(raw, masked, _VOICING_MASK_SUBSET, np.nan)
+    return replace(feats, **raw), reason
+
+
+def apply_closed_phase_mask(
+    feats: VoiceFeatures,
+    gci: npt.NDArray[np.int64],
+    result: ClosedPhaseResult,
+) -> tuple[VoiceFeatures, npt.NDArray[np.str_]]:
+    """Nan the source features of cycles a rank-deficient closed-phase frame corrupts.
+
+    Completes GIF5: the weighter's per-frame validity flag becomes per-cycle NaN
+    here, via the same `apply_cycle_mask` seam (value ``NaN``) VUV and O1==0 use.
+
+    **Coverage is the forward smear, and that is correctness, not pessimism.** The
+    feature groups read the flow ``u`` (``prepare_cycles``: ``useg = u/fs``; the
+    spectral and amplitude features are ``u``-derived), and ``u = de-emphasise(uu)``
+    is a causal IIR (5 Hz pole ~0.998) that carries a rank-deficient frame's ``uu``
+    divergence FORWARD to the end of the signal (GIF8). So a rank-deficient frame
+    invalidates not only its own cycles but **every cycle from its start onward** --
+    each later cycle reads tainted ``u`` and would otherwise emit a finite-but-wrong
+    feature the mask misses. There is no grounded sub-feature-magnitude cutoff (the
+    pole decays slowly), so the full forward extent is masked. A ``reason`` array
+    (``"valid"`` / ``"rank_deficient"``) keeps the masking observable.
+
+    **Opt-in composition, and it composes with the VUV mask.** Like
+    `apply_voicing_mask`, this is an explicit second `apply_cycle_mask` call, not a
+    default; ``np.where`` **selects** ``NaN`` rather than multiplying, so applying
+    both masks in either order NaNs the union of their cycles and neither clobbers
+    the other's NaNs.
+    """
+    gci = np.atleast_1d(np.asarray(gci)).astype(np.int64)
+    reason = np.full(gci.size, "valid", dtype="<U14")
+    invalid = np.flatnonzero(~result.frame_valid)
+    if invalid.size:
+        # first corrupted u sample = the earliest rank-deficient frame's start;
+        # the IIR taints u from there to the end. A cycle [gci[i], gci[i+1]) is
+        # tainted iff it extends past that point (its end > first corrupted sample).
+        first = int(result.frame_starts[int(invalid.min())])
+        cyc_hi = np.append(gci[1:], result.uu.size) if gci.size else gci
+        reason[cyc_hi > first] = "rank_deficient"
+    masked = reason != "valid"
     raw = {name: getattr(feats, name).copy() for name in _VOICING_MASK_SUBSET}
     apply_cycle_mask(raw, masked, _VOICING_MASK_SUBSET, np.nan)
     return replace(feats, **raw), reason

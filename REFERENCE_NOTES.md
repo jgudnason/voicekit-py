@@ -2100,10 +2100,22 @@ on all valid frames.
   line `w(max(1,gci-cpDelay):gci)=0` is **inclusive of the GCI**; the mask is built
   1-based-internally so this `+1` is automatic, and the whole mask is bit-exact vs
   `weightsForLP`.
-- **Not yet wired:** the feature-layer `apply_closed_phase_mask` composition (feeding
-  the closed-phase flow into `extract_voice_features`, then NaN-masking invalid cycles)
-  — the pure mapping `invalid_cycle_mask` and its synthetic decomposition test are in;
-  the composition into `VoiceFeatures` is the next step.
-- **Status:** closed-phase method landed and native-fs-validated; feature-layer
-  composition pending. AME and the Gaussian variants are the next methods on the same
-  `lpc_covar` seam.
+- **GIF5 completed: the feature mask covers the FORWARD smear, because features read
+  `u`.** Established from the code (not assumed): `prepare_cycles` builds `useg = u/fs`
+  and the amplitude/spectral/timing features are `u`-derived (`prep.py`, `flow.py:54`,
+  `spectral.py:90`); only `mfdr` reads `uu` (`flow.py:53`), `naq` both. Since features
+  read `u`, and `u`'s IIR taints from the first rank-deficient frame's start to the end
+  (above), the **local `uu`-span mask is a silent under-mask** — every cycle after the
+  invalid frame would emit a finite-but-wrong `u`-feature. So
+  `voicekit.features.apply_closed_phase_mask` masks **every cycle from the first invalid
+  frame onward** (the forward extent), NaN via the same `apply_cycle_mask` seam VUV/O1==0
+  use, with a `reason` array. This is correctness, not pessimism; there is no grounded
+  sub-magnitude cutoff (the 0.998 pole decays too slowly to fit one — rule 1), so the
+  full forward extent is masked. `invalid_cycle_mask` remains the honest *local* `uu`
+  primitive, documented as not-for-`u`-consumers. A consumption pin test fails if a
+  refactor routes a `u`-feature through `uu` (which would invalidate the extent).
+- **Status:** closed-phase COMPLETE end-to-end — detection → weighter → flow → features
+  with rank-deficient cycles honestly NaN'd, a weighting-function-plus-config interface
+  item 9's harness consumes. AME and the two Gaussian variants are the next methods on
+  the same `lpc_covar` seam (continuous weights — where the `W^2` convention actually
+  bites, unlike `cp`'s 0/1).
