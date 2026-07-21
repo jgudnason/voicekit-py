@@ -41,6 +41,7 @@ def inverse_filter_frames(
     x: npt.NDArray[np.float64],
     coeffs: npt.NDArray[np.float64],
     starts: npt.NDArray[np.int64],
+    dc: npt.NDArray[np.float64] | None = None,
 ) -> npt.NDArray[np.float64]:
     """Inverse filter ``x`` with per-frame coefficients, switching at frame starts.
 
@@ -50,11 +51,19 @@ def inverse_filter_frames(
     is warmed up on the ``order`` preceding samples; because ``A(z)`` is FIR,
     this makes the piecewise result identical to global filtering wherever
     the coefficients agree. Matches VOICEBOX ``v_lpcifilt`` with ``fade=0``.
+
+    ``dc`` is an optional per-frame DC level subtracted from the signal before
+    filtering (``filter(A_i, 1, x - dc[i])``), reproducing ``v_lpcifilt``'s ``dc``
+    input -- the closed-phase covariance solve fits a DC jointly and subtracts it
+    here. **Omitting ``dc`` (the default) is byte-identical to the plain form**, so
+    every existing caller is unaffected.
     """
     if len(coeffs) != len(starts):
         raise ValueError(f"Got {len(coeffs)} coefficient rows but {len(starts)} frame starts")
     if np.any(np.diff(starts) <= 0):
         raise ValueError("Frame starts must be strictly increasing")
+    if dc is not None and len(dc) != len(coeffs):
+        raise ValueError(f"Got {len(dc)} dc values but {len(coeffs)} coefficient rows")
     order = coeffs.shape[1] - 1
     n = len(x)
     y = np.empty(n)
@@ -64,5 +73,6 @@ def inverse_filter_frames(
         if lo >= n:
             break
         ctx = max(0, lo - order)
-        y[lo:hi] = scipy.signal.lfilter(a, [1.0], x[ctx:hi])[lo - ctx :]
+        seg = x[ctx:hi] if dc is None else x[ctx:hi] - dc[i]
+        y[lo:hi] = scipy.signal.lfilter(a, [1.0], seg)[lo - ctx :]
     return y

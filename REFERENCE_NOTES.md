@@ -2006,8 +2006,11 @@ mask. The reconciliation is an API exposure, not a fill.
   added, and (b) the golden assertion ``goi_candidates == ret_goic[:,0] − 1`` on all
   three fixtures. Besides the dataclass, the only production line that changes is
   the single construction site.
-- **Status:** shape pinned; implementation pending (own commit, guard-test-first,
-  before `gif/`).
+- **Status:** landed (2026-07-20). `goi_candidates` exposed on `GciResult`
+  (0-based sorted int64, positions only), threaded out of the single existing
+  setdiff, `goi`/`gci`/`residual` unperturbed (existing golden guard stays green),
+  semantics pinned against `ret_goic[:,0]-1` (content+order on 16k; unit-level on
+  all three). Ready for the closed-phase weighter to consume.
 
 ### GIF7. Step-8 capture shape: native-fs method capture; the reference's fs=20000 resample front-end is a documented non-target
 
@@ -2059,3 +2062,48 @@ Decided 2026-07-19 at the closed-phase gate (second round).
   fixture limitation: a named, deliberate capture gap, not an oversight.
 - **Status:** capture shape decided — native-fs method capture; the non-targets
   above are the ledgered gap.
+
+### GIF8. Closed-phase weighter landed: validated native-fs against the reference; GIF5 Option B; two source findings
+
+Landed 2026-07-21. `voicekit.gif.closed_phase_gif` implements the closed-phase
+method against the pins: the GIF2 full-frame solve under the 0/1 mask, GIF1's
+`W^2` weight (a no-op for the 0/1 mask, squared uniformly for the continuous-weight
+methods to come), GIF6's GOI reconstruction, GIF7's native fs. Validated end-to-end
+against the reference (`weightsForLP` + `v_lpccovar` + `lpcifilt`, captured native-fs
+by `tests/golden/capture/capture_cp.py`): the weight and reconstructed GOIs are
+**bit-exact**, and `uu` matches to **~3e-12** (BLAS-accumulated, asserted rtol 1e-6)
+on all valid frames.
+
+- **GIF5 Option B, as decided.** A frame whose nonzero-weight support `< nar+1` is
+  flagged (`ClosedPhaseResult.frame_valid`), but the solve still runs — `lpc_covar`
+  returns the min-norm solution, so the flow stays **finite** (never a signal NaN).
+  The per-frame flag maps to per-cycle NaN downstream (`invalid_cycle_mask` +
+  `apply_cycle_mask`), the same seam VUV uses. On `vowel_glide_16k` the one
+  rank-deficient frame (GIF3) is flagged and its `uu` **diverges** from the reference
+  there (min-norm vs the reference's basic-solution artifact, both finite) — captured
+  honestly, asserted as expected divergence, not a NaN.
+- **Source finding — the reference driver's weight is a latent row/column bug.**
+  `weightsForLP` returns `w` as a `1×N` **row**; the reference weighted-LP driver
+  passes it straight to the covariance solver, which errors on a column signal
+  (`sc = s(cs).*w(cs)` broadcasts to `N×N`). fs-independent — the driver's `cp` path
+  does not run as written. The capture passes `w(:)` (the intended usage; the AR is
+  sensible and matches voicekit). Reproduced as a capture-script note, not in the
+  port (voicekit's per-frame solve is orientation-agnostic).
+- **Source finding — the de-emphasis IIR smears the GIF5 divergence forward.** `uu`'s
+  rank-deficient-frame divergence is **local** (an FIR inverse filter confines it to
+  that frame's output span), but `u = deemph(uu)` is a causal IIR (5 Hz pole ≈ 0.998,
+  slow decay), so `u` matches the reference only **up to** the first invalid frame and
+  is IIR-tainted after. The per-frame→per-cycle mask (overlap rule) maps the *directly*
+  corrupted `uu` span; the forward `u` taint is a characterized limitation, not chased
+  by the mask (the golden test asserts `u` parity only up to the first invalid frame).
+- **Between-spurt boundary (confirmed from source).** The `cp` mask's between-spurt
+  line `w(max(1,gci-cpDelay):gci)=0` is **inclusive of the GCI**; the mask is built
+  1-based-internally so this `+1` is automatic, and the whole mask is bit-exact vs
+  `weightsForLP`.
+- **Not yet wired:** the feature-layer `apply_closed_phase_mask` composition (feeding
+  the closed-phase flow into `extract_voice_features`, then NaN-masking invalid cycles)
+  — the pure mapping `invalid_cycle_mask` and its synthetic decomposition test are in;
+  the composition into `VoiceFeatures` is the next step.
+- **Status:** closed-phase method landed and native-fs-validated; feature-layer
+  composition pending. AME and the Gaussian variants are the next methods on the same
+  `lpc_covar` seam.

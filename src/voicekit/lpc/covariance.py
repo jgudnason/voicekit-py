@@ -106,4 +106,10 @@ def lpc_covar(
     # unweighted (v_lpccovar's e(:,2)), so a caller reads both energies from one
     # call (e.g. the VUV Es/Ep features single-source their energies here).
     signal_energy = float(target @ target)
-    return LpcResult(a=a, error=error, signal_energy=signal_energy)
+    # DC level, v_lpccovar's third output. With ones APPENDED and target = s(n),
+    # coef_full[order] is the constant coefficient c where the residual is
+    # A(z)*s(n) + c; matching the reference's residual A(z)*(s-DC) = A(z)*s -
+    # DC*sum(a) gives DC = -c/sum(a) (= v_lpccovar's aa(1)/sum(ar)). Only the
+    # closed-phase inverse filter reads it; None on the plain path.
+    dc = float(-coef_full[order] / np.sum(a)) if dc_offset else None
+    return LpcResult(a=a, error=error, signal_energy=signal_energy, dc=dc)

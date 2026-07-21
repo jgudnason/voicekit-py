@@ -27,12 +27,19 @@ class LpcResult:
     (``e(:,2)``), so a caller can read both the signal and residual energy from
     one analysis. Only the covariance solver sets it; the autocorrelation solver
     leaves it ``None``.
+
+    ``dc`` is the jointly-fitted DC level from the ``dc_offset`` covariance fit
+    (VOICEBOX ``v_lpccovar``'s third output, ``dc = aa(1)/sum(ar)``): the constant
+    ``DC`` such that the residual is ``A(z)*(s - DC)``. It is what the closed-phase
+    inverse filter subtracts per frame (``v_lpcifilt``'s ``dc``). ``None`` unless
+    ``dc_offset`` was set.
     """
 
     a: npt.NDArray[np.float64]
     error: float
     reflection: npt.NDArray[np.float64] | None = None
     signal_energy: float | None = None
+    dc: float | None = None
 
     @property
     def order(self) -> int:
