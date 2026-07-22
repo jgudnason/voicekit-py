@@ -42,7 +42,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from voicekit._matlab_compat import matlab_round
+from voicekit.gif.ame import ame_weight
 from voicekit.lpc import lpc_covar
 
 GOLDEN = Path(__file__).resolve().parent / "golden"
@@ -95,28 +95,9 @@ def agauss_weight(gci, nsp, fs):
     return np.maximum(0.0, 1.0 - gg)
 
 
-def ame_weight(gci, nsp, fs):
-    d, dq, pq, rlen, minF0 = 0.01, 0.4, 0.8, 3, 50.0
-    max_spc = np.ceil(fs / minF0)
-    gci = np.asarray(gci, dtype=np.float64)
-    t = np.append(np.diff(gci), gci[-1] - gci[-2])
-    over = np.where(t > max_spc)[0]  # unvoiced handling (does not trigger on fixtures)
-    for i in over:
-        t[i] = t[i - 1]
-    dramp = np.linspace(1, d, rlen + 1)
-    uramp = np.linspace(d, 1, rlen + 1)
-    w = np.ones(nsp)
-    for ii, g in enumerate(gci):
-        ts = int(g - matlab_round(pq * dq * t[ii]))
-        tsm = ts - rlen
-        w[tsm - 1 : ts] = dramp  # 1-based inclusive [tsm, ts]
-        te = ts + int(matlab_round(dq * t[ii]))
-        tep = te + rlen
-        w[ts - 1 : te] = d
-        w[te - 1 : tep] = uramp
-    return w
-
-
+# ame_weight is now imported from its production module (voicekit.gif.ame); the
+# inline copy was migrated there with the AME method commit. rgauss/agauss remain
+# inline until their own method modules are born.
 WEIGHT_FN = {"rgauss": rgauss_weight, "agauss": agauss_weight, "ame": ame_weight}
 
 
