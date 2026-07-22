@@ -43,6 +43,7 @@ import numpy as np
 import pytest
 
 from voicekit.gif.ame import ame_weight
+from voicekit.gif.gaussian import rgauss_weight
 from voicekit.lpc import lpc_covar
 
 GOLDEN = Path(__file__).resolve().parent / "golden"
@@ -62,20 +63,9 @@ POSITIVE_ATOL = 1e-10
 NEGATIVE_FLOOR = 0.5
 
 
-# --- reference weight constructions (weightsForLP), reproduced from source for
-# --- validation against the captured reference W. gci is 1-based (MATLAB); the
-# --- return is length nsp with index i corresponding to sample nn = i+1. These
-# --- FORMULAS are what the production weighter module will implement at the next
-# --- gate; here they are pinned bit-exact against the reference weight vector.
-def rgauss_weight(gci, nsp, fs):
-    kappa, sig2 = 0.9, 50.0  # sig = sqrt(50)
-    nn = np.arange(1, nsp + 1, dtype=np.float64)
-    gg = np.zeros(nsp)
-    for g in gci:
-        gg += kappa * np.exp(-0.5 * (nn - g) ** 2 / sig2)
-    return 1.0 - gg
-
-
+# ame_weight and rgauss_weight are imported from their production modules
+# (voicekit.gif.ame / voicekit.gif.gaussian); their inline copies were migrated there
+# with each method's commit. agauss_weight remains inline until its module lands.
 def agauss_weight(gci, nsp, fs):
     kappa, alpha, r, minF0 = 0.99, 0.1, 2.0, 50.0
     max_spc = 0.5 * np.ceil(fs / minF0)
