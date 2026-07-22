@@ -7,16 +7,15 @@ synthetic test asserts the exact cycle indices, not just "some cycle went NaN".
 
 import numpy as np
 
-from voicekit.gif.closed_phase import ClosedPhaseResult, invalid_cycle_mask
+from voicekit.gif.weighted_lp import WeightedLpResult, invalid_cycle_mask
 
 
-def _result(frame_starts, frame_valid, n_samples) -> ClosedPhaseResult:
+def _result(frame_starts, frame_valid, n_samples) -> WeightedLpResult:
     # only uu.size, frame_starts, frame_valid matter to the mapping
-    return ClosedPhaseResult(
+    return WeightedLpResult(
         u=np.zeros(n_samples),
         uu=np.zeros(n_samples),
         weight=np.ones(n_samples),
-        goi=np.zeros(0, dtype=np.int64),
         frame_starts=np.asarray(frame_starts, dtype=np.int64),
         frame_valid=np.asarray(frame_valid, dtype=np.bool_),
     )

@@ -10,6 +10,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from voicekit.gif.weighted_lp import _FRAME_HOP_S, _FRAME_LEN_S, _PREEMPH_HZ
+
 
 @dataclass(frozen=True)
 class ClosedPhaseConfig:
@@ -38,6 +40,8 @@ class ClosedPhaseConfig:
     cp_delay_s: float = 0.9e-3
     min_f0: float = 50.0
     apop: float = 0.3
-    preemph_hz: float = 5.0
-    frame_len_s: float = 32e-3
-    frame_hop_s: float = 16e-3
+    # Framing / pre-emphasis are shared across every weighted-LP method; single-sourced
+    # in weighted_lp (bit-identical to the former literals 5.0 / 32e-3 / 16e-3).
+    preemph_hz: float = _PREEMPH_HZ
+    frame_len_s: float = _FRAME_LEN_S
+    frame_hop_s: float = _FRAME_HOP_S

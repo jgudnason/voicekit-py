@@ -13,8 +13,8 @@ import numpy as np
 from voicekit.features import extract_voice_features
 from voicekit.features.extract import (
     _VOICING_MASK_SUBSET,
-    apply_closed_phase_mask,
     apply_cycle_mask,
+    apply_invalid_frame_mask,
 )
 from voicekit.gif import ClosedPhaseConfig, closed_phase_gif
 from voicekit.io import read_wav
@@ -68,7 +68,7 @@ def test_glide_masks_forward_from_the_invalid_frame() -> None:
     """The rank-deficient frame NaNs its own cycles AND every cycle after it."""
     result, fs, gci = _cp("vowel_glide_16k")
     feats = extract_voice_features(result.u, result.uu, fs, gci)
-    masked, reason = apply_closed_phase_mask(feats, gci, result)
+    masked, reason = apply_invalid_frame_mask(feats, gci, result)
 
     invalid = np.flatnonzero(~result.frame_valid)
     assert invalid.size == 1  # the one live GIF3 frame
@@ -91,7 +91,7 @@ def test_glide_masks_forward_from_the_invalid_frame() -> None:
 def test_valid_cycles_are_unchanged_by_the_mask() -> None:
     result, fs, gci = _cp("vowel_glide_16k")
     feats = extract_voice_features(result.u, result.uu, fs, gci)
-    masked, reason = apply_closed_phase_mask(feats, gci, result)
+    masked, reason = apply_invalid_frame_mask(feats, gci, result)
     keep = reason == "valid"
     for name in _VOICING_MASK_SUBSET:
         np.testing.assert_array_equal(getattr(masked, name)[keep], getattr(feats, name)[keep])
@@ -108,9 +108,9 @@ def test_composes_with_a_prior_mask_union_and_order_independent() -> None:
     # order A: prior mask, then closed-phase
     a = {n: getattr(feats, n).copy() for n in _VOICING_MASK_SUBSET}
     apply_cycle_mask(a, prior, _VOICING_MASK_SUBSET, np.nan)
-    fa, _ = apply_closed_phase_mask(replace(feats, **a), gci, result)
+    fa, _ = apply_invalid_frame_mask(replace(feats, **a), gci, result)
     # order B: closed-phase, then prior mask
-    fb0, _ = apply_closed_phase_mask(feats, gci, result)
+    fb0, _ = apply_invalid_frame_mask(feats, gci, result)
     b = {n: getattr(fb0, n).copy() for n in _VOICING_MASK_SUBSET}
     apply_cycle_mask(b, prior, _VOICING_MASK_SUBSET, np.nan)
 
@@ -127,6 +127,6 @@ def test_8k_runs_and_is_sane() -> None:
     goic = np.asarray(z["ret_goic"])[:, 0].astype(np.int64) - 1
     result = closed_phase_gif(sig.samples, float(sig.fs), gci, goic, ClosedPhaseConfig())
     feats = extract_voice_features(result.u, result.uu, float(sig.fs), gci)
-    masked, reason = apply_closed_phase_mask(feats, gci, result)
+    masked, reason = apply_invalid_frame_mask(feats, gci, result)
     assert reason.shape == (gci.size,)
     assert set(np.unique(reason).tolist()) <= {"valid", "rank_deficient"}

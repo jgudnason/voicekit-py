@@ -29,7 +29,7 @@ from voicekit.features.spectral import spectral_statistics
 from voicekit.features.timing import timing_statistics
 
 if TYPE_CHECKING:  # annotation only -- keeps the feature layer runtime-independent of vuv/gif
-    from voicekit.gif.closed_phase import ClosedPhaseResult
+    from voicekit.gif.weighted_lp import WeightedLpResult
     from voicekit.vuv.decision import VoicingTrack
 
 # Features zeroed on a no-open-phase (O1==0) cycle, per the reference's degenerate
@@ -124,12 +124,12 @@ def apply_voicing_mask(
     return replace(feats, **raw), reason
 
 
-def apply_closed_phase_mask(
+def apply_invalid_frame_mask(
     feats: VoiceFeatures,
     gci: npt.NDArray[np.int64],
-    result: ClosedPhaseResult,
+    result: WeightedLpResult,
 ) -> tuple[VoiceFeatures, npt.NDArray[np.str_]]:
-    """Nan the source features of cycles a rank-deficient closed-phase frame corrupts.
+    """Nan the source features of cycles a rank-deficient weighted-LP frame corrupts.
 
     Completes GIF5: the weighter's per-frame validity flag becomes per-cycle NaN
     here, via the same `apply_cycle_mask` seam (value ``NaN``) VUV and O1==0 use.

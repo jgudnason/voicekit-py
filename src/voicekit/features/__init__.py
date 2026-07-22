@@ -3,6 +3,7 @@
 from voicekit.features.config import FeaturesConfig
 from voicekit.features.extract import (
     apply_cycle_mask,
+    apply_invalid_frame_mask,
     apply_voicing_mask,
     extract_voice_features,
 )
@@ -23,6 +24,7 @@ __all__ = [
     "FeaturesConfig",
     "VoiceFeatures",
     "apply_cycle_mask",
+    "apply_invalid_frame_mask",
     "apply_voicing_mask",
     "cycle_framework",
     "derive_flow",
