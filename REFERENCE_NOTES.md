@@ -1871,6 +1871,17 @@ revision.
   **raises the value of the synthetic-known-value hand-checks** when these methods are
   implemented — with only one behavioural oracle, the "computes what I expect" check
   (assert the decomposition, not just the final value) carries more weight than usual.
+- **Amendment (2026-07-23) — the authority has a direct invocation pin, stronger than
+  param-fit.** The establishment above is *config-compatibility inference* (which
+  revision the reference parameter file's pins fit) — corroboration-shaped under rule 2.
+  A direct pin exists and is stronger: the reference weighted-LP solve wrapper calls the
+  weighting constructor **by name**, and the only file defining that symbol is the
+  authoritative (`-0.5`-present) one; the superseded predecessor defines a
+  **differently-named** symbol that nothing in the tree calls (grep: zero callers, dead).
+  So MATLAB path resolution provably invokes the `-0.5`-present file in the live pipeline
+  — authority-by-invocation, not merely authority-by-param-fit. The param-fit remains
+  valid corroboration; the invocation is the establishment. (Surfaced at the GIF10
+  capture gate; the earlier round deferred amending here until the implementation gate.)
 - **Status:** authority established (current authoritative, old superseded); `-0.5`
   example located. Ledgered ahead of the Gaussian method implementation; the capture
   target is the current reference weighting constructor.
@@ -2069,8 +2080,8 @@ Landed 2026-07-21. `voicekit.gif.closed_phase_gif` implements the closed-phase
 method against the pins: the GIF2 full-frame solve under the 0/1 mask, GIF1's
 `W^2` weight (a no-op for the 0/1 mask, squared uniformly for the continuous-weight
 methods to come), GIF6's GOI reconstruction, GIF7's native fs. Validated end-to-end
-against the reference (`weightsForLP` + `v_lpccovar` + `lpcifilt`, captured native-fs
-by `tests/golden/capture/capture_cp.py`): the weight and reconstructed GOIs are
+against the reference (the reference weighting constructor + `v_lpccovar` + `lpcifilt`,
+captured native-fs by `tests/golden/capture/capture_cp.py`): the weight and reconstructed GOIs are
 **bit-exact**, and `uu` matches to **~3e-12** (BLAS-accumulated, asserted rtol 1e-6)
 on all valid frames.
 
@@ -2083,7 +2094,7 @@ on all valid frames.
   there (min-norm vs the reference's basic-solution artifact, both finite) — captured
   honestly, asserted as expected divergence, not a NaN.
 - **Source finding — the reference driver's weight is a latent row/column bug.**
-  `weightsForLP` returns `w` as a `1×N` **row**; the reference weighted-LP driver
+  the reference weighting constructor returns `w` as a `1×N` **row**; the reference weighted-LP driver
   passes it straight to the covariance solver, which errors on a column signal
   (`sc = s(cs).*w(cs)` broadcasts to `N×N`). fs-independent — the driver's `cp` path
   does not run as written. The capture passes `w(:)` (the intended usage; the AR is
@@ -2099,7 +2110,7 @@ on all valid frames.
 - **Between-spurt boundary (confirmed from source).** The `cp` mask's between-spurt
   line `w(max(1,gci-cpDelay):gci)=0` is **inclusive of the GCI**; the mask is built
   1-based-internally so this `+1` is automatic, and the whole mask is bit-exact vs
-  `weightsForLP`.
+  the reference weighting constructor.
 - **GIF5 completed: the feature mask covers the FORWARD smear, because features read
   `u`.** Established from the code (not assumed): `prepare_cycles` builds `useg = u/fs`
   and the amplitude/spectral/timing features are `u`-derived (`prep.py`, `flow.py:54`,
@@ -2119,3 +2130,180 @@ on all valid frames.
   item 9's harness consumes. AME and the two Gaussian variants are the next methods on
   the same `lpc_covar` seam (continuous weights — where the `W^2` convention actually
   bites, unlike `cp`'s 0/1).
+
+### GIF9. Shared weighted-LP core extracted: the method-independent solve is single-sourced; only the weight vector changes per method
+
+Landed 2026-07-22 (commit `cfbcdad`) as a behaviour-preserving refactor ahead of the
+three continuous-weight methods, and proven a no-op rather than argued one.
+
+- **The seam.** Every step-8 method is the same solve under a different per-sample weight
+  (GIF8): a per-frame AR on the pre-emphasised signal under the method's weight, inverse
+  filter the original signal, de-emphasise. `gif/weighted_lp.py` is that core —
+  `_weighted_lp_solve(sp, fs, weight, *, preemph_hz, frame_len_s, frame_hop_s) ->
+  WeightedLpResult` — holding the frame grid, pre-emphasis, the GIF1 `W^2` squaring, the
+  per-frame `lpc_covar(dc_offset)`, the GIF5 validity rule (`count_nonzero(w[nar:]) >=
+  nar+1`), the inverse filter and de-emphasis. Each method is a thin weight-construction
+  wrapper: build weight → call the core.
+- **Result-type split (no `goi` on the shared type).** `WeightedLpResult` carries
+  `u, uu, weight, frame_starts, frame_valid` — all method-independent. `ClosedPhaseResult`
+  **extends** it, adding cp's `goi` (the reference GOI-selection output the 0/1 mask
+  needs, GIF6); the three continuous methods are gci-only and return the bare
+  `WeightedLpResult`. An optional-`goi`-on-the-shared-type was rejected as exactly the
+  coupling the split exists to prevent.
+- **Mask made method-general.** `apply_closed_phase_mask` → `apply_invalid_frame_mask`,
+  retyped (with `invalid_cycle_mask`) to `WeightedLpResult`: both read only
+  `frame_valid` / `frame_starts` / `uu.size`, produced identically for all four methods,
+  so the cp-specific name no longer fit.
+- **Framing constants single-sourced.** `_PREEMPH_HZ = 5.0`, `_FRAME_LEN_S = 32e-3`,
+  `_FRAME_HOP_S = 16e-3` hoisted to `weighted_lp` and referenced by every method config.
+  Genuine coupling (all methods share the grid / pre-emphasis and must change together),
+  and **bit-identical** to the former `ClosedPhaseConfig` literals — verified same
+  IEEE-754 pattern — so the guard proves *preservation*, not a both-paths-read-the-new-value
+  coincidence. `features/flow_derivation`'s `f_preemph = 10` (the IAIF de-emphasis) is a
+  **different** constant, coincidence not coupling, deliberately left out of the hoist.
+- **Guard-test-first (preservation proven, not asserted).** The committed cp `.cp.npz`
+  goldens reproduce **bit-identical** through the refactored path; the forward-smear mask
+  assertions (`test_gif_feature_mask`), the cycle-mask mapping (`test_gif_cycle_mask`) and
+  the glide rank-deficient-frame assertion (`invalid.size == 1`) stayed green with their
+  assertions **untouched** (imports / types only). Bisect-clean: green with the
+  capture-gate files removed (343 tests), so the extraction needs no method code —
+  provable by cp alone.
+- **Status:** landed, no behaviour change. The four methods now share one solve; the
+  bisect log carries this as the no-op-by-design commit.
+
+### GIF10. GIF1 confirmed live for the first time: continuous weights make W-vs-W² a real negative control (two-sided capture)
+
+Captured 2026-07-22 (commit `409007e`) — the first exercise of the GIF1 convention by a
+weight that is not 0/1.
+
+- **Why it had never really been tested.** cp's 0/1 mask makes `W^2 == W` (idempotent),
+  so GIF1 was a structural no-op for it and cp's golden could only be one-sided (positive:
+  the flow matches). The three continuous methods have `W^2 != W`, so `lpc_covar(W)` and
+  `lpc_covar(W^2)` solve genuinely different least-squares problems — a negative control
+  finally exists, and dropping it would be the scale-invariance zero-evidence pass GIF1
+  documents.
+- **Two-sided, both sides against the reference AR** (the reference weighting constructor
+  → `v_lpccovar`, native fs, all frames, via `capture_gif_weights`):
+  - POSITIVE: `lpc_covar(weights = W**2)` reproduces the reference AR on every frame.
+  - NEGATIVE (control): `lpc_covar(weights = W)` diverges by O(1) — max `|ΔAR|` in
+    `[0.70, 3.9]` across methods / fixtures — asserted on the probe frame so the test
+    fails if `W` ever starts matching (a degenerate frame the positive side could not
+    distinguish).
+- **The mechanism, pinned from source.** `v_lpccovar` applies the weight to the residuals
+  (`dm.*w`, `s.*w`, then `dm\sc`), so `W^2` emerges in the normal equations naturally — it
+  does **not** pre-square the vector. `lpc_covar` takes `sqrt(weights)`. So reproducing
+  reference weight `W` means passing `weights = W**2`: weight-on-residuals, not
+  squaring-the-vector.
+- **Positive-side tolerance is order-scaled evidence, not a picked number.** cp never
+  asserted the bare AR solve — its golden persists only weight / goi / flow, so there is
+  NO precedent for the AR tolerance. The `atol = 1e-10` stands on its own: the deviation
+  is ~3e-12 at order-16 (16 k) and ~3.5e-13 at order-8 (8 k) — it *tracks* problem size,
+  the signature of numpy-SVD-vs-MATLAB-QR accumulation on identical inputs, not a flat
+  floor. Named in-test.
+- **Synthetic decomposition (the second mechanism).** The reference is the SOLE oracle
+  for these methods (no COVAREP / independent weighted-LP cross-check), so a golden-master
+  pass proves "matches the reference," not "computes what we expect." A constructed rgauss
+  cycle asserts the DECOMPOSITION — hand-verified weight values, and that `W^2` enters the
+  normal equations via the reference's own `dm.*w` mechanism reproduced independently in
+  numpy — on a deliberately non-fittable signal (four components at order 4; an
+  exactly-fittable signal would zero the residual and blind the probe, the second GIF1
+  blinding mechanism).
+- **Status:** GIF1 confirmed live and two-sided; every continuous-weight method routes
+  through the `W^2` seam, and the capture is the arbiter for all three.
+
+### GIF11. The three continuous-weight methods landed (AME, rgauss, agauss): weight construction, params, flow parity, the migration discipline
+
+Landed 2026-07-22/23 as three commits (`0fa1356` AME, `1d798f1` rgauss, `ad41344` agauss),
+each a wrapper over the GIF9 core.
+
+- **Weight constructions** (from the reference weighting constructor; `-0.5`-present, GIF4):
+  - AME (Alku): attenuate the main-excitation region to a positive floor `d`, positioned
+    `round(PQ·DQ·T)` before each GCI, width `round(DQ·T)`, with `rlen`-sample ramps.
+  - rgauss (Zalazar, symmetric): `w = 1 - Σ κ·exp(-½(n-gci)²/σ²)`.
+  - agauss (Zalazar, asymmetric): a half-Gaussian each side of the GCI — narrow after
+    (`σ1 = α·N0`), wide before (`σ2 = r·σ1`) — under a `max(0, 1-gg)` clamp (GIF12).
+- **Params, Rule-1 pinned from the reference parameter file, not fitted.** AME `d=0.01,
+  DQ=0.4, PQ=0.8, rlen=3, minF0=50`; rgauss `κ=0.9, σ=√50`; agauss `κ=0.99, α=0.1, r=2,
+  minF0=50`. Each on a typed frozen config; framing references the GIF9 shared constants.
+- **Two `maxSamplesPerCycle` formulas — coincidence, not coupling.** AME uses
+  `ceil(fs/minF0)`; agauss uses `0.5·ceil(fs/minF0)`. They differ and are commented at
+  each site as deliberately distinct, so no later tidy-up single-sources them.
+- **Migration discipline.** Each weight fn was migrated **verbatim** from the capture-gate
+  test into its production module, params sourced from the config with defaults equal to
+  the former literals — a relocation, not a reimplementation. The GIF10 convention test
+  switched inline copy → production import with its assertion **untouched**, reproducing
+  the captured weight: AME bit-exact (exact arithmetic), rgauss/agauss machine-eps (`exp`
+  last-ULP, MATLAB vs numpy). The rgauss production is in fact *closer* than the inline
+  copy (1.1e-16 vs 2.2e-16): it forms `σ2 = σ²` from `σ=√50` as the reference does, not
+  the inline literal `50.0`. After agauss, no inline weight copy remains.
+- **Flow parity (the new end-to-end golden).** GIF10 pinned the weight and the AR; the
+  method commits add `u`/`uu` through the inverse filter + de-emphasis (`capture_gif_flow`,
+  reusing cp's inverse-filter path so the `lpcifilt`-vs-`v_lpcifilt` choice stays settled
+  by cp). Asserted at `rtol=1e-6, atol=1e-9` (the cp/GIF8 accumulation reason); observed
+  abs deviation ≤ 1.2e-12 across 16 k and 8 k.
+- **gci-only, and 8 k is clean.** All three read `gci` only; the reference weighting
+  constructor's `any(goi-gci<=0)` guard needs a valid `goi` passed but the branches never
+  read it, so the voicekit API omits `goi`. Unlike cp's F1 8 k exclusion (a live-IAIF
+  limitation), these methods do not route through IAIF, so 8 k flow parity is captured and
+  asserted — measured clean, not dropped.
+- **Status:** three methods complete through flow; features close transitively (GIF13).
+
+### GIF12. agauss support is full BY MEASUREMENT, not construction: its clamp can zero support, so GIF5 is live-but-unreached for agauss
+
+Established 2026-07-23 at the agauss commit (`ad41344`) by re-measurement on the fixtures,
+framed precisely so the distinction is not overstated.
+
+- **The distinction is provenance, not observed behaviour.** AME (positive floor `d>0`)
+  and rgauss (`min w ≈ 1-κ = 0.1 > 0`) have full support **by construction** — their
+  weights can never zero support, on any input. agauss's `max(0, 1-gg)` clamp **can**
+  produce hard zeros where summed neighbour notches drive `gg > 1`, so whether a frame goes
+  rank-deficient is a question answered by measurement.
+- **Re-measured on the fixtures (fresh, not a survey citation).** The clamp zeros
+  **3 / 2 / 0** samples on `vowel_f0100_16k` / `vowel_glide_16k` / `vowel_f0120_8k`; the
+  minimum per-frame nonzero support is **510 / 511 / 257** against `nar+1 = 17 / 17 / 9`.
+  So **zero rank-deficient frames** — `frame_valid` is all-true on every fixture, but as a
+  *measured* fact, not a guarantee.
+- **Mask status, stated exactly.** For agauss the invalid-frame mask is **live** (its clamp
+  can drop support, unlike AME/rgauss where it is unreachable-by-construction) but
+  **unreached** on current fixtures. It is NOT "exercised": glide/cp remains the only
+  fixture that drives `frame_valid = False` (GIF8). Corpus data with pathological GCI
+  spacing could clamp harder and reopen the GIF5 rank-deficiency path for agauss — a
+  reopen-with-evidence, like GIF2's deferred alternative.
+- **Clamp handling is identical on both sides.** The clamp lives inside the weight fn, so
+  the reference capture and voicekit solve on the same clamped weight; the flow *at the
+  clamped samples* matches at the flow tolerance (asserted), so the few zeros are not a
+  divergence source.
+- **Status:** agauss full support measured (not constructed) on all fixtures; the GIF5 path
+  is live-but-unreached, reopenable on corpus evidence. Cross-ref GIF5, GIF11.
+
+### GIF13. Step-8 features close transitively: the composition seam is method-blind, so parity-validated flow validates each method's feature path
+
+Decided 2026-07-23 (commit `26fcc7d`) — the same composition argument step 6 used to close
+its orchestration seam (the "J4" join) without a full-pipeline golden.
+
+- **The seam is airtight-transitive (from the signatures).** `extract_voice_features(u,
+  uu, fs, gci, config)` consumes only method-independent inputs — `u`/`uu` (parity-
+  validated flow), `fs`, the detection `gci` (not the method), and a `FeaturesConfig`
+  (NOT the method's config) — so it structurally cannot distinguish which method produced
+  the flow. `apply_invalid_frame_mask(feats, gci, result)` reads only the shared-core
+  `WeightedLpResult` fields (`frame_valid`, `frame_starts`, `uu.size`), produced
+  identically for all four methods. Nothing method-specific crosses either seam.
+- **Three links, each already pinned.** (1) Flow parity — the three methods' `u`/`uu` match
+  the reference at machine-eps (GIF11). (2) The extractor — validated on captured flow at
+  machine-eps (step 6), and method-blind by the above, so it validates on any
+  parity-matched flow. (3) The mask — validated by glide/cp's live rank-deficient frame
+  (GIF8, the forward-smear extent). Transitively, each method's feature path is validated.
+- **What transitivity does NOT cover, and the smoke test does.** Transitivity validates
+  each link *assuming* the pieces connect; it does not prove they connect. One composed
+  smoke test per method drives `method_gif → u/uu → extract_voice_features →
+  apply_invalid_frame_mask → VoiceFeatures` and asserts a well-formed result (finite flow
+  in, every field shaped `(gci.size,)`, `reason` all `"valid"` since these methods have no
+  rank-deficient frame, mask a no-op). It proves the seam CONNECTS — no
+  attribute/shape/type mismatch — nothing numerical.
+- **No full per-method feature golden (deliberate).** That would re-validate the three
+  already-pinned links in composition — the redundancy step 6 declined. No production
+  change was needed: the wiring already composes.
+- **Status:** step 8 closed. Four weighted-LP GIF methods over one core (closed-phase, AME,
+  rgauss, agauss), each with flow parity, GIF1 two-sided validation (the three continuous),
+  transitively-validated features, and a common `(signal, fs, gci, *, config)` interface
+  ready for item 9's scoring harness.
