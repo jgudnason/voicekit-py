@@ -43,7 +43,7 @@ import numpy as np
 import pytest
 
 from voicekit.gif.ame import ame_weight
-from voicekit.gif.gaussian import rgauss_weight
+from voicekit.gif.gaussian import agauss_weight, rgauss_weight
 from voicekit.lpc import lpc_covar
 
 GOLDEN = Path(__file__).resolve().parent / "golden"
@@ -63,26 +63,10 @@ POSITIVE_ATOL = 1e-10
 NEGATIVE_FLOOR = 0.5
 
 
-# ame_weight and rgauss_weight are imported from their production modules
-# (voicekit.gif.ame / voicekit.gif.gaussian); their inline copies were migrated there
-# with each method's commit. agauss_weight remains inline until its module lands.
-def agauss_weight(gci, nsp, fs):
-    kappa, alpha, r, minF0 = 0.99, 0.1, 2.0, 50.0
-    max_spc = 0.5 * np.ceil(fs / minF0)
-    nn = np.arange(1, nsp + 1, dtype=np.float64)
-    gg = np.zeros(nsp)
-    gci_last = max(1.0, float(gci[0]) - max_spc)
-    for g in gci:
-        n0 = min(float(g) - gci_last, max_spc)
-        sig1 = alpha * n0
-        sig2 = r * sig1
-        gleft = np.exp(-0.5 * (nn - g) ** 2 / sig1**2)
-        gleft[nn <= g] = 0.0
-        gright = np.exp(-0.5 * (nn - g) ** 2 / sig2**2)
-        gright[nn > g] = 0.0
-        gg += kappa * (gleft + gright)
-        gci_last = float(g)
-    return np.maximum(0.0, 1.0 - gg)
+# All three weight fns are now imported from their production modules
+# (voicekit.gif.ame / voicekit.gif.gaussian); their inline copies were migrated with
+# each method's commit. This test validates the production weights (bit-exact for ame,
+# machine-eps for the exp-based rgauss/agauss) against the captured reference W.
 
 
 # ame_weight is now imported from its production module (voicekit.gif.ame); the

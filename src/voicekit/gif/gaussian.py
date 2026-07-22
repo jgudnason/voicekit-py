@@ -106,3 +106,101 @@ def rgauss_gif(
         frame_len_s=cfg.frame_len_s,
         frame_hop_s=cfg.frame_hop_s,
     )
+
+
+@dataclass(frozen=True)
+class AgaussConfig:
+    """Parameters for the asymmetric Gaussian (agauss) weighted-LP method.
+
+    Reference values (``projParam`` ``case 'agauss'``; Zalazar et al. 2024); none
+    fitted.
+
+    - ``kappa``: notch depth. Reference ``kappa = 0.99``.
+    - ``alpha``: the narrow (right-of-GCI) width as a fraction of the cycle length,
+      ``sig1 = alpha * N0``. Reference ``alpha = 0.1``.
+    - ``r``: the wide/narrow ratio -- the left-of-GCI width is ``sig2 = r * sig1``,
+      so the notch is wider before the GCI than after. Reference ``r = 2``.
+    - ``min_f0``: lowest assumed F0 (Hz). Reference ``minF0 = 50``. Sets
+      ``maxSamplesPerCycle = 0.5*ceil(fs/min_f0)`` -- agauss's HALF-cycle cap, which
+      is deliberately NOT AME's full ``ceil(fs/min_f0)``; the two methods' caps
+      differ and are not single-sourced.
+    - framing / pre-emphasis: shared across every weighted-LP method (`weighted_lp`).
+    """
+
+    kappa: float = 0.99
+    alpha: float = 0.1
+    r: float = 2.0
+    min_f0: float = 50.0
+    preemph_hz: float = _PREEMPH_HZ
+    frame_len_s: float = _FRAME_LEN_S
+    frame_hop_s: float = _FRAME_HOP_S
+
+
+def agauss_weight(
+    gci: npt.NDArray[np.int64],
+    n_samples: int,
+    fs: float,
+    config: AgaussConfig | None = None,
+) -> npt.NDArray[np.float64]:
+    """Asymmetric-Gaussian weight over ``n_samples`` samples: ``max(0, 1 - sum kappa*g)``.
+
+    ``gci`` are **1-based** GCI positions; index ``i`` = sample ``i+1``.
+    ``agauss_gif`` converts at its boundary. agauss reads ``gci`` only. Each notch is
+    a half-Gaussian on each side of the GCI, narrow after (``sig1 = alpha*N0``) and
+    wide before (``sig2 = r*sig1``), with ``N0`` the capped cycle length.
+
+    The final ``max(0, .)`` **clamp** is what distinguishes agauss from rgauss/AME:
+    where summed neighbour notches drive ``gg > 1`` it produces a **hard zero**, so
+    agauss's effective support is NOT full by construction. On the committed fixtures
+    the clamp zeros only a handful of samples and no frame's support falls to the
+    order (measured in ``test_gif_agauss``), so ``frame_valid`` is all-true here --
+    but that is measured, not guaranteed; corpus data could clamp harder and reopen
+    the GIF5 rank-deficiency path for agauss.
+    """
+    cfg = config if config is not None else AgaussConfig()
+    kappa, alpha, r = cfg.kappa, cfg.alpha, cfg.r
+    max_spc = 0.5 * np.ceil(fs / cfg.min_f0)  # agauss: HALF-cycle cap -- NOT AME's ceil
+    nn = np.arange(1, n_samples + 1, dtype=np.float64)
+    gg = np.zeros(n_samples)
+    gci_last = max(1.0, float(gci[0]) - max_spc)  # pseudo first GCI
+    for g in gci:
+        n0 = min(float(g) - gci_last, max_spc)  # capped cycle length
+        sig1 = alpha * n0  # narrow, right of GCI
+        sig2 = r * sig1  # wide, left of GCI
+        gleft = np.exp(-0.5 * (nn - g) ** 2 / sig1**2)
+        gleft[nn <= g] = 0.0
+        gright = np.exp(-0.5 * (nn - g) ** 2 / sig2**2)
+        gright[nn > g] = 0.0
+        gg += kappa * (gleft + gright)
+        gci_last = float(g)
+    return np.maximum(0.0, 1.0 - gg)  # clamp: overlapping notches can push gg > 1
+
+
+def agauss_gif(
+    signal: npt.NDArray[np.float64],
+    fs: float,
+    gci: npt.NDArray[np.int64],
+    *,
+    config: AgaussConfig | None = None,
+) -> WeightedLpResult:
+    """agauss glottal inverse filtering of ``signal``.
+
+    ``gci`` are the 0-based `GciResult.gci` closure instants. agauss reads ``gci``
+    only -- no ``goi``. Runs at native ``fs`` (GIF7). Returns the bare
+    `WeightedLpResult` (no ``goi``). agauss's clamp can zero support in principle, so
+    ``frame_valid`` is all-true only where measured (all fixtures); the invalid-frame
+    mask is live for agauss (unlike rgauss/AME) though unreached on current fixtures.
+    """
+    cfg = config if config is not None else AgaussConfig()
+    sp = np.asarray(signal, dtype=np.float64)
+    gci = np.asarray(gci, dtype=np.int64)
+    # weightsForLP indexes 1-based; GciResult.gci is 0-based. Convert at the boundary.
+    weight = agauss_weight(gci + 1, sp.size, fs, cfg)
+    return _weighted_lp_solve(
+        sp,
+        fs,
+        weight,
+        preemph_hz=cfg.preemph_hz,
+        frame_len_s=cfg.frame_len_s,
+        frame_hop_s=cfg.frame_hop_s,
+    )
