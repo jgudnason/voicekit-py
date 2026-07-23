@@ -2307,3 +2307,70 @@ its orchestration seam (the "J4" join) without a full-pipeline golden.
   rgauss, agauss), each with flow parity, GIF1 two-sided validation (the three continuous),
   transitively-validated features, and a common `(signal, fs, gci, *, config)` interface
   ready for item 9's scoring harness.
+
+## Step 9 (GCI/GOI scoring harness) — forward findings
+
+### SCORE1. The between-segment false-alarm exclusion is underdetermined by the paper — an open question, recorded not resolved
+
+Recorded 2026-07-23 at the methodology gate, before any scorer code. The YAGA metric
+set (ID/miss/FA + FAT, σ + bias μ, GOI) was ratified as the target; the FA-exclusion
+rule that separates FA rate from FAT is the one piece the paper leaves vague, so it is
+logged here as an open question and the scorer is built with the exclusion structurally
+absent (not stubbed).
+
+- **The rule, verbatim** (Thomas et al. 2012, YAGA, §V-A, p. 89): *"False alarms are
+  not counted if they occur between voiced segments separated by more than 3 ms."* The
+  companion metric, same paragraph: *"False Alarm Total (FAT), measures all false alarms
+  as a proportion of total candidates, including those between voiced segments. This
+  helps to assess the quality of voicing detection and the suppression of multiple false
+  alarms within one reference cycle."* Fig. 7 (the outcome-characterisation figure) does
+  **not** illustrate this rule — it is structurally identical to DYPSA's Fig. 2 (two
+  instant trains, the four cycle outcomes), with no voiced-segment boundaries and no
+  3 ms marker. The rule lives only in that one prose sentence.
+
+- **Ruled out — the naive reading.** "3 ms" is **not** the gap threshold between
+  adjacent reference GCIs: 3 ms ≈ 333 Hz is shorter than any plausible pitch period, so
+  under that reading every inter-cycle gap would exceed it and every cycle boundary would
+  be a segment break. Dimensionally incoherent; discarded.
+
+- **Ratified constraint — segmentation is reference-derived, never VUV-derived.** Where
+  the exclusion rests on a voiced/unvoiced segmentation of the signal, that segmentation
+  must come from the reference, **not** from the algorithm's own voicing detector. The
+  text forces this: FAT exists to *"assess the quality of voicing detection,"* and you
+  cannot assess a detector using its own output as the exclusion boundary — that is
+  circular, and it would make FA rate tunable through a detector parameter (a rule-1 back
+  door). This constraint is binding.
+
+- **Underdetermined — two axes, neither resolved here.**
+  (i) *What quantity the 3 ms measures.* No reading is established from the text. At
+  least two survive it, structurally different:
+    - an **edge-guard** band around reference voiced-segment boundaries — a
+      between-segment candidate farther than 3 ms from the nearest voiced region is
+      dropped (this makes the sentence sane, but note it re-introduces a *tolerance
+      window*, the very thing the gate found this methodology otherwise lacks);
+    - a gap **within the estimated GCI train** — a run of estimated GCIs with an
+      internal gap exceeding 3 ms constitutes two segments, and false alarms falling in
+      that gap are dropped.
+    Neither is asserted correct; that two survive is the point.
+  (ii) *The reference-segment-break threshold* — the pitch-scale gap in the reference
+    GCI train that delimits one voiced segment from the next (distinct from the 3 ms,
+    which the naive reading already ruled out as this threshold). The paper fixes no
+    value.
+
+- **Inert on OpenGlot; does not block steps 2–3.** OpenGlot is sustained voiced vowels
+  with no unvoiced gaps, so there are no between-segment regions and the exclusion never
+  fires. The scorer and its synthetic validation, and the first corpus run, are all
+  unaffected. FAT — whose defining clause *is* the between-segment inclusion, and whose
+  per-candidate numerator ("all false alarms": k or k−1 in a k-detection FA cycle?) is
+  itself unspecified — is deferred with the exclusion rather than reconstructed.
+
+- **Must be settled before APLAWD scoring.** APLAWD is running speech with genuine
+  unvoiced gaps; there the exclusion is load-bearing and FA rate cannot be computed
+  faithfully until both axes above are settled. Settle it (with human ratification, and
+  a further ledger entry recording the chosen reading and rationale) at the APLAWD gate,
+  not in implementation.
+
+- **Status:** OPEN. Scorer ships fully-determined metrics only (ID/miss/FA per-cycle,
+  σ, bias μ, per-cycle decomposition, GOI via the two-tier signature); the
+  between-segment exclusion and FAT are structurally absent, flagged in the result and
+  the tests so their absence is visible, not silent.
