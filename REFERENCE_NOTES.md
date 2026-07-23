@@ -2370,6 +2370,12 @@ absent (not stubbed).
   a further ledger entry recording the chosen reading and rationale) at the APLAWD gate,
   not in implementation.
 
+- **What the pins guard (and what they do not).** The absence is pinned at the API
+  surface only — the `ScoreConfig` and `InstantScore` field sets and `fat`'s `None`
+  type (a new parameter, a parallel field, or a retype each break a test). A hardcoded
+  `3.0` buried in scoring logic is caught by no pin; whoever settles this before APLAWD
+  must check for one by reading the code, not trust the tests.
+
 - **Status:** OPEN. Scorer ships fully-determined metrics only (ID/miss/FA per-cycle,
   σ, bias μ, per-cycle decomposition, GOI via the two-tier signature); the
   between-segment exclusion and FAT are structurally absent, flagged in the result and
