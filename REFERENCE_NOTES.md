@@ -2380,3 +2380,116 @@ absent (not stubbed).
   σ, bias μ, per-cycle decomposition, GOI via the two-tier signature); the
   between-segment exclusion and FAT are structurally absent, flagged in the result and
   the tests so their absence is visible, not silent.
+
+### OG-GCI. The OpenGlot GCI reference: analytic tₑ for R1, −dUg/dt-peak for R2; the peak-pick operator is a systematically-early estimator whose magnitude is R1-specific and does not transfer
+
+Recorded 2026-07-23 at the OpenGlot gate, before any harness code. OpenGlot ships **no
+GCI annotations** — it is a glottal-inverse-filtering benchmark whose ground truth is the
+glottal-flow *waveform* (Alku et al. 2019: the flow Ug(t) is *"the primary sound source
+for vowels"*; Table 4 parametrises reference Ug/Ag by open/closing quotients, never an
+instant). Every reference GCI we score against is therefore constructed by us. This entry
+fixes how.
+
+- **R1 reference = analytic tₑ.** R1 is LF-generated; tₑ = (1+Rk)/(2·Rg·f₀) is the instant
+  of maximum negative flow derivative, exact per pulse from (f₀, phonation mode).
+  Reimplemented from Fant/Liljencrants/Lin; OpenGlot's shipped `.m` used only as the
+  reference for phonation-mode parameter values. The reference is the analytic instant
+  placed in the file's sample frame — **not** a peak-pick of the flow channel.
+
+- **R2 reference = −dUg/dt peak on the glottal-flow channel** (ratified). Area-zero-crossing
+  is the **rejected alternative**, recorded with its predicted disagreement stated a priori:
+  flow-derivative peak precedes area closure, so **area-zero lags the adopted instant by
+  ~0.2–0.8 ms** (a fraction of the closing phase; tens of samples at 44.1 kHz). Grounds for
+  flow: it is the acoustic excitation instant a GCI detector responds to, it matches R1's tₑ
+  definition, and the paper privileges Ug as the sound source. The choice is a priori; the
+  ~0.2–0.8 ms difference is to be *measured and reported* once R2 runs, never used to select
+  the channel.
+
+- **Baseline operator (fixed): central-difference derivative + discrete argmin per cycle, no
+  sub-sample refinement.** (If sub-sample instants are later wanted, the fixed method is
+  parabolic interpolation about the argmin — a separate, separately-ratified operator, not
+  the baseline.)
+
+- **The operator is a systematically *early* estimator of the true instant.** Mechanism: the
+  discrete argmin of an *asymmetric* extremum is biased toward its gentle flank; the LF
+  closure is gentle-approach / fast-return, so the sampled minimum lands before tₑ.
+  Sub-sample refinement would remove quantisation scatter but not this bias (a symmetric
+  parabola on an asymmetric cusp leaves the displacement).
+
+- **R1 quantifies this — for R1, at 8 kHz — and the number stays there.** Measured
+  operator−tₑ on shipped R1 (48 k→8 k as generated): all-mode mean **−0.88 sample
+  (−0.110 ms)**, every condition early. Decomposed against a direct-sample control:
+  **~−0.59 sample operator-intrinsic + ~−0.29 sample from OpenGlot's specific 48 k→8 k
+  anti-alias filter.** Per mode (8 kHz): normal −1.10, breathy −1.03, creaky −0.78,
+  whispery −0.61 sample — largest for the sharpest, most-asymmetric closures.
+
+- **The magnitude does NOT transfer to R2; only the mechanism does.** R2 has no 48 k→8 k
+  resample (so the −0.29 component is absent), and R2's flow is a kinematic-vocal-fold
+  waveform, not an LF pulse — a *different* closure asymmetry. The R1 magnitude already
+  varies ~2× across LF modes alone, proving it is shape-specific. Therefore R2 inherits a
+  **named, unquantified early contribution to μ**: known in direction and cause, unmeasured
+  in size because R2 has no truth to measure against. **Never estimated by fitting, never
+  corrected.** Writing an R1 number into R2's μ would give it authority over an object it
+  was not measured on.
+
+- **Does not affect R1 scope.** R1's scored reference is analytic tₑ, so the operator bias
+  never enters R1's σ/μ. The R1 operator run is diagnostic only.
+
+- **Status:** reference definitions RATIFIED (R1 analytic tₑ; R2 −dUg/dt, area rejected).
+  Operator-bias magnitude quantified for R1/8 kHz; for R2 it is a named-but-unquantified μ
+  term by construction. No 3 ms / segmentation interaction (R1/R2 are sustained voiced
+  vowels; cf. SCORE1).
+
+### OG-GOI. The OpenGlot GOI reference: R1's t_o is a synthesis seam (no GOI accuracy scored there); R2 flow-onset carries the OG-GCI bias, and its reference-accurate flag is a decision, not a property
+
+Recorded 2026-07-23 at the OpenGlot gate, before any harness code. As with GCIs, OpenGlot
+ships no GOI annotations; the reference is constructed. Unlike OG-GCI, this entry does
+**not** have a strong-authority analytic instant to offer for R1 — that asymmetry is the
+point of the entry.
+
+- **R1's t_o is the LF period boundary — a synthesis seam, not an opening event.** The
+  shipped LF synthesis has **no closed phase**: `synthFrame.m` concatenates pulses with
+  Te+Tb = 1/f₀, so the flow leaves zero only *instantaneously* at the pulse-to-pulse
+  boundary (U(0)=0 analytically, but momentarily — it does not rest at zero). The absence of
+  a closed phase establishes the **absence of a physical opening instant to recover**, not
+  the presence of one. R1's t_o is therefore a property of the concatenation, with no
+  glottal event behind it.
+
+- **Consequence — R1 scores no GOI accuracy/bias.** Scoring σ/μ against t_o would measure
+  agreement with a synthesis boundary, and is **not** evidence about GOI detection on speech
+  with a real closed phase; it could penalise a detector that correctly finds no distinct
+  opening — evidence of the wrong sign, not merely weak evidence. This is a materially weaker
+  object than OG-GCI's analytic tₑ and must not sit in the same register of authority. R1 GOI
+  *hit rate* is in any case identical to GCI hit rate (shared cycle logic) and adds no
+  independent information. **Decision: R1 contributes GCI accuracy only; GOI accuracy/bias is
+  scored on R2, not R1.**
+
+- **R2 reference = glottal-flow opening on the flow channel**, consistent with the
+  flow-primary choice in OG-GCI, where the kinematic vocal-fold model produces a real
+  (adduction-dependent) closed phase and thus a physical opening. Area-onset is the rejected
+  alternative. Any derivative-based opening estimator inherits the asymmetric-extremum
+  mechanism of OG-GCI: early, cause and direction known, magnitude unquantified on R2, never
+  fitted or corrected.
+
+- **The reference-accurate flag, split R1 from R2:**
+  - *R1 GCI:* analytic tₑ is exact, so `reference_accurate` all-True is a genuine **property**
+    of the data.
+  - *R2 (GCI and GOI):* the reference is the peak-pick operator, which OG-GCI establishes as
+    systematically early by an **unquantified** amount. A reference carrying an unquantified
+    bias is not accurate — it is uniformly **treated** as accurate. YAGA's flag means "the
+    reference is trustworthy for this cycle," so setting it all-True on R2 is a **decision to
+    score σ/μ against a biased reference**, taken because **no per-cycle basis exists to flag
+    any cycle as worse than another**, not a property of the data. **R2's σ/μ therefore carry
+    the OG-GCI bias term wholesale.**
+
+- **Carry-forward (to be restated when the R2 driver is specified).** With R1 contributing
+  GCI accuracy only, R2 is the **sole source of GOI accuracy in the entire synthetic phase**,
+  scored against a reference with an unquantified bias and a reference-accurate flag set
+  all-True by decision. No known-answer test validates GOI accuracy anywhere in the sequence:
+  the "validate the instrument on a known answer before trusting it on an unknown" discipline
+  holds for GCI (R1 analytic tₑ) but **not** for GOI. R2's GOI σ/μ do not have the same
+  standing as its GCI σ/μ and must not be reported as though they do.
+
+- **Status:** RATIFIED. R1: GCI accuracy only, no GOI accuracy (t_o is a synthesis seam).
+  R2: GOI accuracy/bias scored against flow-onset, reference-accurate flag all-True by
+  decision (reason recorded), σ/μ inheriting the OG-GCI operator bias. See OG-GCI.
