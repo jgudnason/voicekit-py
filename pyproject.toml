@@ -28,10 +28,18 @@ Repository = "https://github.com/jgudnason/voicekit-py"
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=8",
+    # The three tools whose output gates CI (pytest runs the suite; ruff and mypy
+    # gate lint/type/format) are pinned to EXACT versions. Bare specifiers let CI's
+    # pip resolve a different version from the developer's, with certainty and no
+    # lockfile to reconcile them -- and `ruff format` output is version-dependent, so
+    # an unpinned formatter makes the committed tree non-reconstructible from the
+    # recorded inputs (the same defect class as a globbing corpus loader). The pins
+    # below are "whatever local currently resolves" as of 2026-07-24, NOT a considered
+    # upgrade decision; bump them deliberately, as their own commit, when upgrading.
+    "pytest==9.1.1",
     "pytest-cov",
-    "ruff",
-    "mypy",
+    "ruff==0.15.20",
+    "mypy==2.1.0",
     "scipy-stubs",
     "matplotlib",
     # Independent cross-check of our from-scratch SWT filter taps (test-only,
