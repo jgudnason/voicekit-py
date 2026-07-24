@@ -54,8 +54,11 @@ packages = ["src/voicekit"]
 testpaths = ["tests"]
 addopts = "-q"
 # Import the package straight from src/, independent of the editable-install
-# .pth file (iCloud Drive marks that file hidden and Python 3.11+ skips it)
-pythonpath = ["src"]
+# .pth file (iCloud Drive marks that file hidden and Python 3.11+ skips it).
+# "." puts the repo root on the path so the committed ``validation`` package is
+# importable by its CI unit tests (its ground-truth-construction code is tested on
+# synthetic inputs in default CI; the corpus runs are not -- DESIGN.md section 5).
+pythonpath = ["src", "."]
 
 [tool.ruff]
 line-length = 100
@@ -75,5 +78,8 @@ select = [
 # numpy's stubs use 3.12+ `type` statements, so mypy must run on a modern
 # interpreter (CI type-checks once on the newest matrix version)
 [tool.mypy]
-files = ["src"]
+# validation/ manufactures ground-truth references; strict typing there is not
+# optional (a mistyped reference is a silent wrong answer). Ratified at the R1/R2
+# driver gate. src/ and validation/ under the same strict settings.
+files = ["src", "validation"]
 strict = true
