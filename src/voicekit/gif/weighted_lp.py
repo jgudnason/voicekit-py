@@ -48,6 +48,16 @@ class WeightedLpResult:
     support fell below the model dimension, so its AR is the minimum-norm solution of
     a rank-deficient system). The per-frame flag is turned into per-cycle NaN
     downstream (`voicekit.features.apply_invalid_frame_mask`), not here.
+
+    ``frame_support`` is the per-frame nonzero-weight count over the predicted
+    samples, and ``model_dim`` the dimension it is tested against (``nar`` lags plus
+    one DC term). ``frame_valid`` is exactly ``frame_support >= model_dim`` -- the
+    count is published so that a *margin* is observable, not only the boolean it
+    collapses to. Distance from the rank-deficiency boundary is the quantity that
+    says whether a healthy-looking run is nowhere near degeneracy or one cycle away
+    from it (REFERENCE_NOTES GIF12: agauss's clamp makes full support a measured
+    fact, not a constructed one, so corpus data can reopen the GIF5 path). Reporting
+    the minimum alone hides the tail; consumers should keep the distribution.
     """
 
     u: npt.NDArray[np.float64]
@@ -55,6 +65,8 @@ class WeightedLpResult:
     weight: npt.NDArray[np.float64]
     frame_starts: npt.NDArray[np.int64]
     frame_valid: npt.NDArray[np.bool_]
+    frame_support: npt.NDArray[np.int64]
+    model_dim: int
 
 
 def _weighted_lp_solve(
@@ -91,6 +103,8 @@ def _weighted_lp_solve(
     ar = np.empty((starts0.size, nar + 1), dtype=np.float64)
     dc = np.empty(starts0.size, dtype=np.float64)
     frame_valid = np.empty(starts0.size, dtype=np.bool_)
+    frame_support = np.empty(starts0.size, dtype=np.int64)
+    model_dim = nar + 1  # nar lags + 1 DC term
     for f, t0 in enumerate(starts0):
         lo = int(t0) - nar  # include nar samples of history before the frame start
         hi = int(t0) + wl + 1  # predicted interval [t0, t0+wl] inclusive -> half-open
@@ -107,7 +121,8 @@ def _weighted_lp_solve(
         # cheap sufficient rank check: count nonzero weights. lpc_covar still returned
         # the min-norm solution above -- the flow stays finite.
         support = int(np.count_nonzero(w_frame[nar:]))
-        frame_valid[f] = support >= nar + 1
+        frame_support[f] = support
+        frame_valid[f] = support >= model_dim
 
     # Inverse-filter the ORIGINAL signal with the per-frame AR and DC, then de-emphasise
     # (reference: uu = lpcifilt(sp, ar, T, dc); u = filter(a, b, uu)).
@@ -115,7 +130,13 @@ def _weighted_lp_solve(
     u = scipy.signal.lfilter([a_scale], b, uu)
 
     return WeightedLpResult(
-        u=u, uu=uu, weight=weight, frame_starts=starts0, frame_valid=frame_valid
+        u=u,
+        uu=uu,
+        weight=weight,
+        frame_starts=starts0,
+        frame_valid=frame_valid,
+        frame_support=frame_support,
+        model_dim=model_dim,
     )
 
 

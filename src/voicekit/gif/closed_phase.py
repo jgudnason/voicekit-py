@@ -90,5 +90,7 @@ def closed_phase_gif(
         weight=core.weight,
         frame_starts=core.frame_starts,
         frame_valid=core.frame_valid,
+        frame_support=core.frame_support,
+        model_dim=core.model_dim,
         goi=goi,
     )

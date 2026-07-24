@@ -11,13 +11,19 @@ from voicekit.gif.weighted_lp import WeightedLpResult, invalid_cycle_mask
 
 
 def _result(frame_starts, frame_valid, n_samples) -> WeightedLpResult:
-    # only uu.size, frame_starts, frame_valid matter to the mapping
+    # only uu.size, frame_starts, frame_valid matter to the mapping. frame_support is
+    # filled consistently with frame_valid (model_dim either side of the boundary) so
+    # the fixture cannot drift into stating a contradiction the mapping doesn't read.
+    valid = np.asarray(frame_valid, dtype=np.bool_)
+    model_dim = 17
     return WeightedLpResult(
         u=np.zeros(n_samples),
         uu=np.zeros(n_samples),
         weight=np.ones(n_samples),
         frame_starts=np.asarray(frame_starts, dtype=np.int64),
-        frame_valid=np.asarray(frame_valid, dtype=np.bool_),
+        frame_valid=valid,
+        frame_support=np.where(valid, model_dim, model_dim - 1).astype(np.int64),
+        model_dim=model_dim,
     )
 
 

@@ -90,3 +90,31 @@ def test_8k_clamp_inactive() -> None:
 def test_frame_geometry_matches_reference() -> None:
     result, fl, _ = _run("vowel_f0100_16k")
     np.testing.assert_array_equal(result.frame_starts, fl["tstart"])
+
+
+@pytest.mark.parametrize("name", FIXTURES)
+def test_frame_support_matches_independent_rederivation(name: str) -> None:
+    # The published per-frame count (GIF5/GIF12 instrumentation) is validated against
+    # the same independent re-derivation the test above uses, rather than trusting the
+    # core's own bookkeeping. Publishing the count is what makes the MARGIN from the
+    # rank-deficiency boundary observable: `frame_valid` alone collapses "nowhere near
+    # degenerate" and "one sample away" into the same True.
+    result, _, fs = _run(name)
+    wl = int(matlab_round(fs * 0.032))
+    expected = [
+        int(np.count_nonzero(result.weight[t0 : t0 + wl + 1])) for t0 in result.frame_starts
+    ]
+    np.testing.assert_array_equal(result.frame_support, expected)
+    assert result.model_dim == int(np.ceil(fs / 1000.0)) + 1
+    # frame_valid is exactly the collapse of the published count, not a parallel rule
+    np.testing.assert_array_equal(result.frame_valid, result.frame_support >= result.model_dim)
+
+
+@pytest.mark.parametrize("name", FIXTURES)
+def test_support_margin_is_large_on_these_fixtures(name: str) -> None:
+    # GIF12's measured minima (510 / 511 / 257 against nar+1 = 17 / 17 / 9) restated as
+    # an assertion on the published field. Pinned as a MARGIN, not as an equality: the
+    # point is that these fixtures sit far from the boundary, which is why they cannot
+    # exercise the GIF5 path and why corpus data is what would reopen it.
+    result, _, _ = _run(name)
+    assert result.frame_support.min() > 10 * result.model_dim
