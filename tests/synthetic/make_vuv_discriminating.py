@@ -100,10 +100,12 @@ def build_d1(fs: int = 16000) -> tuple[Signal, list[Region], npt.NDArray[np.int6
     # continuing monotonically across the label boundary into the sub-floor tail.
     snr_steady, snr_t3, snr_end = 30.0, -2.0, -16.0
     env = np.ones(n_src)
-    dec = np.concatenate([
-        np.linspace(snr_steady, snr_t3, n_decay, endpoint=False),
-        np.linspace(snr_t3, snr_end, n_sub),
-    ])
+    dec = np.concatenate(
+        [
+            np.linspace(snr_steady, snr_t3, n_decay, endpoint=False),
+            np.linspace(snr_t3, snr_end, n_sub),
+        ]
+    )
     env[n_steady:] = np.array([_db_to_amp(s - snr_steady) for s in dec])  # amp rel to steady
 
     sigma_n = rms_v * _db_to_amp(-snr_steady)  # floor: steady sits at +snr_steady dB
@@ -131,8 +133,9 @@ def build_d1(fs: int = 16000) -> tuple[Signal, list[Region], npt.NDArray[np.int6
     return Signal(samples=x, fs=fs, source="vuv_d1_offset_16k"), regions, gci_construction, "snr_db"
 
 
-def _bandlimited_noise(rng: np.random.Generator, n: int, fs: int,
-                       lo: float, hi: float) -> npt.NDArray[np.float64]:
+def _bandlimited_noise(
+    rng: np.random.Generator, n: int, fs: int, lo: float, hi: float
+) -> npt.NDArray[np.float64]:
     """Unit-RMS Gaussian noise band-limited to [lo, hi] Hz (Butterworth band-pass)."""
     b, a = scipy.signal.butter(4, [lo / (fs / 2), hi / (fs / 2)], btype="band")
     y = scipy.signal.lfilter(b, a, rng.standard_normal(n))
@@ -177,10 +180,12 @@ def build_d2(fs: int = 16000) -> tuple[Signal, list[Region], npt.NDArray[np.int6
         Region(o1, o2, "V", "voiced_fricative", vfr_db),
         Region(o2, o3, "N", "unvoiced_fricative", -np.inf),  # no voicing -> VFR = -inf
     ]
-    gci_construction = np.concatenate([
-        _source_closures(udash_m, fs, f0),
-        _source_closures(udash_v, fs, f0) + n_modal,
-    ])
+    gci_construction = np.concatenate(
+        [
+            _source_closures(udash_m, fs, f0),
+            _source_closures(udash_v, fs, f0) + n_modal,
+        ]
+    )
     peak = float(np.max(np.abs(x)))
     x = x / peak * 0.95
     return Signal(samples=x, fs=fs, source="vuv_d2_vfric_16k"), regions, gci_construction, "vfr_db"
@@ -228,18 +233,25 @@ def build_d3(fs: int = 16000) -> tuple[Signal, list[Region], npt.NDArray[np.int6
         Region(o1, o2, "V", "breathy_voiced", hnr_db),
         Region(o2, o3, "N", "aspiration", -np.inf),  # no voicing -> HNR = -inf
     ]
-    gci_construction = np.concatenate([
-        _source_closures(udash_m, fs, f0),
-        _source_closures(udash_b, fs, f0) + n_modal,
-    ])
+    gci_construction = np.concatenate(
+        [
+            _source_closures(udash_m, fs, f0),
+            _source_closures(udash_b, fs, f0) + n_modal,
+        ]
+    )
     peak = float(np.max(np.abs(x)))
     x = x / peak * 0.95
     sig = Signal(samples=x, fs=fs, source="vuv_d3_breathy_16k")
     return sig, regions, gci_construction, "hnr_db"
 
 
-def _write(name: str, signal: Signal, regions: list[Region],
-           gci_construction: npt.NDArray[np.int64], hard_param_name: str) -> None:
+def _write(
+    name: str,
+    signal: Signal,
+    regions: list[Region],
+    gci_construction: npt.NDArray[np.int64],
+    hard_param_name: str,
+) -> None:
     labels = {
         "region_start": np.asarray([r.start for r in regions], dtype=np.int64),
         "region_end": np.asarray([r.end for r in regions], dtype=np.int64),

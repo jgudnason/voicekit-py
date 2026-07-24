@@ -98,8 +98,9 @@ def test_near_silence_is_floor_gated_but_not_undefined_j2_catches_what_j1_misses
     # -90 dBFS floor, so J2 does. This is why the fields are separate.
     rng = np.random.default_rng(0)
     x = rng.integers(-1, 2, 4000).astype(np.float64) * 2**-15  # ~ -92 dBFS
-    track = detect_voicing(Signal(samples=x, fs=16000, source="t"),
-                           _config(enforce_precondition=False))
+    track = detect_voicing(
+        Signal(samples=x, fs=16000, source="t"), _config(enforce_precondition=False)
+    )
     interior = ~track.undefined  # exclude frame 0
     assert track.floor_gated[interior].all()  # J2 fires
     assert not track.undefined[interior].any()  # J1 does not (r1 is finite)
@@ -112,8 +113,9 @@ def test_floor_guard_wins_over_a_sub_floor_periodic_frame():
     fs = 16000
     t = np.arange(4000) / fs
     x = 2**-16 * np.sin(2 * np.pi * 200.0 * t)  # periodic (r1 ~ 1) but ~ -96 dBFS
-    track = detect_voicing(Signal(samples=x, fs=fs, source="t"),
-                           _config(enforce_precondition=False))
+    track = detect_voicing(
+        Signal(samples=x, fs=fs, source="t"), _config(enforce_precondition=False)
+    )
     assert track.floor_gated.all()
     assert not track.voiced.any()  # not voiced despite high r1
 

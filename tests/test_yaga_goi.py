@@ -49,9 +49,7 @@ def test_raw_goi_matches_capture(name):
         YagaConfig(),
     )
     np.testing.assert_array_equal(np.sort(raw), np.sort(d["goi"].astype(np.float64)))
-    np.testing.assert_array_equal(
-        goi_candidates, d["ret_goic"][:, 0].astype(np.int64) - 1
-    )
+    np.testing.assert_array_equal(goi_candidates, d["ret_goic"][:, 0].astype(np.int64) - 1)
 
 
 def test_align_derivation_places_openings_and_drops_sentinels():

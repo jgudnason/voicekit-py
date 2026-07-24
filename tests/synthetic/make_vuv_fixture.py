@@ -147,9 +147,7 @@ def build(spec: FixtureSpec) -> tuple[Signal, dict[str, npt.NDArray[object]]]:
         if r.cls == "V":
             assert r.f0 is not None, "V region needs an f0"
             voiced_parts[i] = _voiced_region(fs, n, r.f0)
-    voiced_rms = float(
-        np.sqrt(np.mean(np.concatenate([s for s, _ in voiced_parts.values()]) ** 2))
-    )
+    voiced_rms = float(np.sqrt(np.mean(np.concatenate([s for s, _ in voiced_parts.values()]) ** 2)))
 
     # Second pass: lay out every region, accumulating the signal and labels.
     pieces: list[npt.NDArray[np.float64]] = []
@@ -217,8 +215,12 @@ def main() -> None:
     write_wav(signal, wav_path)
     np.savez(npz_path, **labels)
     n = signal.n_samples
-    n_v = int(np.sum(labels["region_end"][labels["region_class"] == "V"]
-                     - labels["region_start"][labels["region_class"] == "V"]))
+    n_v = int(
+        np.sum(
+            labels["region_end"][labels["region_class"] == "V"]
+            - labels["region_start"][labels["region_class"] == "V"]
+        )
+    )
     print(f"wrote {wav_path} ({n} samples @ {PRIMARY.fs} Hz)")
     print(f"wrote {npz_path} ({len(labels['gci'])} GCIs across {n_v} voiced samples)")
 

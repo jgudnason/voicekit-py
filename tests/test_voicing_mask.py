@@ -20,9 +20,16 @@ def _feats(n):
     """n cycles, every field finite and distinct so masking is visible."""
     a = np.arange(1.0, n + 1.0)
     return VoiceFeatures(
-        f0=a.copy(), framek=a.astype(np.int64), frame_len_ok=np.ones(n, bool),
-        mfdr=a.copy(), cq=a.copy(), pa=a.copy(), naq=a.copy(),
-        h1h2=a.copy(), hrf=a.copy(), qoq=a.copy(),
+        f0=a.copy(),
+        framek=a.astype(np.int64),
+        frame_len_ok=np.ones(n, bool),
+        mfdr=a.copy(),
+        cq=a.copy(),
+        pa=a.copy(),
+        naq=a.copy(),
+        h1h2=a.copy(),
+        hrf=a.copy(),
+        qoq=a.copy(),
     )
 
 
@@ -31,7 +38,9 @@ def _track(voiced, floor_gated, undefined, frame_len=512, hop=160):
         voiced=np.array(voiced, bool),
         undefined=np.array(undefined, bool),
         floor_gated=np.array(floor_gated, bool),
-        fs=16000, frame_len=frame_len, hop=hop,
+        fs=16000,
+        frame_len=frame_len,
+        hop=hop,
     )
 
 

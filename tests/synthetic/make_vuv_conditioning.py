@@ -87,38 +87,46 @@ def build() -> list[tuple[Case, Signal]]:
 
     # H0 — clean voiced: the control. Nothing added.
     speech, _ = make_inputs.synth_vowel(FS, n, 120.0, 120.0)
-    out.append((
-        Case("vuv_h0_clean_16k", "V", "clean_voiced", "none"),
-        _sig(speech, "vuv_h0_clean_16k"),
-    ))
+    out.append(
+        (
+            Case("vuv_h0_clean_16k", "V", "clean_voiced", "none"),
+            _sig(speech, "vuv_h0_clean_16k"),
+        )
+    )
 
     # H1 — DC + noise: the tidy limit. NOT DC + voiced: on voiced input r1 is
     # already ~0.99, so DC cannot make it "more voiced" and tests nothing. The
     # hazard is the false POSITIVE, which lives on non-voiced input.
     noise = rng.standard_normal(n)
     noise /= np.sqrt(np.mean(noise**2))  # unit RMS
-    out.append((
-        Case("vuv_h1_dc_16k", "N", "dc_noise", "dc"),
-        _sig(noise + 2.5, "vuv_h1_dc_16k"),
-    ))
+    out.append(
+        (
+            Case("vuv_h1_dc_16k", "N", "dc_noise", "dc"),
+            _sig(noise + 2.5, "vuv_h1_dc_16k"),
+        )
+    )
 
     # H2 — hum + noise: THE impostor. Hum is periodic but is not phonation, so
     # the construction label is N. Unconditioned r1 must read false-voiced.
     noise2 = rng.standard_normal(n)
     noise2 /= np.sqrt(np.mean(noise2**2))
-    out.append((
-        Case("vuv_h2_hum_16k", "N", "hum_noise", "hum"),
-        _sig(noise2 + _hum(n, FS, 3.0), "vuv_h2_hum_16k"),
-    ))
+    out.append(
+        (
+            Case("vuv_h2_hum_16k", "N", "hum_noise", "hum"),
+            _sig(noise2 + _hum(n, FS, 3.0), "vuv_h2_hum_16k"),
+        )
+    )
 
     # H3 — hum + voiced: the realistic contamination. Conditioning must remove
     # the impostor's contribution without losing the voiced verdict.
     speech_h, _ = make_inputs.synth_vowel(FS, n, 120.0, 120.0)
     rms_s = float(np.sqrt(np.mean(speech_h**2)))
-    out.append((
-        Case("vuv_h3_humvoiced_16k", "V", "hum_voiced", "hum"),
-        _sig(speech_h + _hum(n, FS, rms_s), "vuv_h3_humvoiced_16k"),
-    ))
+    out.append(
+        (
+            Case("vuv_h3_humvoiced_16k", "V", "hum_voiced", "hum"),
+            _sig(speech_h + _hum(n, FS, rms_s), "vuv_h3_humvoiced_16k"),
+        )
+    )
 
     # H4 — low-F0 clean voiced: the check's false-positive boundary. 85 Hz is a
     # realistic low-male floor. A periodic signal's fundamental is its LOWEST
@@ -126,10 +134,12 @@ def build() -> list[tuple[Case, Signal]]:
     # below the modal floor a signal genuinely carries sub-phonation energy, so
     # firing there is the edge working, not failing.
     speech_l, _ = make_inputs.synth_vowel(FS, n, 85.0, 85.0)
-    out.append((
-        Case("vuv_h4_lowf0_16k", "V", "lowf0_voiced", "none"),
-        _sig(speech_l, "vuv_h4_lowf0_16k"),
-    ))
+    out.append(
+        (
+            Case("vuv_h4_lowf0_16k", "V", "lowf0_voiced", "none"),
+            _sig(speech_l, "vuv_h4_lowf0_16k"),
+        )
+    )
 
     return out
 

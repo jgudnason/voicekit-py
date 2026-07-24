@@ -55,7 +55,7 @@ def test_one_of_each_outcome_full_decomposition():
     # --- decomposition: bounds + which detections landed where + why each outcome ---
     cyc = _by_index(gci.cycles)
     assert [c.index for c in gci.cycles] == [1, 2, 3, 4]
-    for (r, lo, hi) in BOUNDS:
+    for r, lo, hi in BOUNDS:
         assert (cyc[r].lo, cyc[r].hi) == (lo, hi)
 
     assert cyc[1].detections == (203,)

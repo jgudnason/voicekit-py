@@ -107,16 +107,12 @@ def test_waveform_self_and_anti_correlation():
     same = np.zeros(n)
     _place(same, r, pattern)
     _place(same, q, pattern)
-    np.testing.assert_allclose(
-        dk.waveform_similarity(same, [r], [q], fs), [bias], atol=1e-12
-    )
+    np.testing.assert_allclose(dk.waveform_similarity(same, [r], [q], fs), [bias], atol=1e-12)
 
     anti = np.zeros(n)
     _place(anti, r, pattern)
     _place(anti, q, -pattern)
-    np.testing.assert_allclose(
-        dk.waveform_similarity(anti, [r], [q], fs), [-bias], atol=1e-12
-    )
+    np.testing.assert_allclose(dk.waveform_similarity(anti, [r], [q], fs), [-bias], atol=1e-12)
 
 
 def test_pitch_equal_periods_is_minus_half():

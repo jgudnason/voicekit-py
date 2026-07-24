@@ -86,9 +86,9 @@ class ConditioningConfig:
     b_hz: float = 200.0  # paper: b = 200*2*pi rad/s -> pole frequency 200 Hz
 
 
-def eq1_coefficients(fs: float, config: ConditioningConfig | None = None) -> tuple[
-    npt.NDArray[np.float64], npt.NDArray[np.float64]
-]:
+def eq1_coefficients(
+    fs: float, config: ConditioningConfig | None = None
+) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
     """The paper's Eq. (1) as ``(b, a)`` filter coefficients at ``fs``.
 
     Eq. (1) is
@@ -163,9 +163,7 @@ class PreconditionReport(NamedTuple):
     sub_band_violation: bool
 
 
-def check_precondition(
-    signal: Signal, *, enforce: bool = True
-) -> PreconditionReport:
+def check_precondition(signal: Signal, *, enforce: bool = True) -> PreconditionReport:
     """Check the `voicekit.vuv` precondition. **Reads; never rewrites.**
 
     Returns what it measured and, when ``enforce`` is true, **raises on DC**
@@ -229,7 +227,7 @@ def _measure(x: npt.NDArray[np.float64], fs: float) -> PreconditionReport:
     # including silences, while F0 energy is intermittent and mostly above the
     # fundamental. A global fraction separates them structurally.
     spectrum = np.fft.rfft(x)
-    power = (spectrum.real**2 + spectrum.imag**2)
+    power = spectrum.real**2 + spectrum.imag**2
     freqs = np.fft.rfftfreq(n, d=1.0 / fs)
     sub_band_fraction = float(power[freqs < SUB_SPEECH_BAND_HZ].sum() / power.sum())
 

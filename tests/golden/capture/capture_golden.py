@@ -48,8 +48,13 @@ FIXTURE_NAMES = ["vowel_f0100_16k", "vowel_glide_16k", "vowel_f0120_8k"]
 #   gd_r == crnmp; ret_udash/crnmp/gdwav == their intermediates;
 #   ret_gci/goi == gci/goi; ret_gcic == dp_gcic.
 DEFAULT_DROP = {
-    "gd_r", "ret_udash", "ret_crnmp", "ret_gdwav",
-    "ret_gci", "ret_goi", "ret_gcic",
+    "gd_r",
+    "ret_udash",
+    "ret_crnmp",
+    "ret_gdwav",
+    "ret_gci",
+    "ret_goi",
+    "ret_gcic",
 }
 # Fields kept from the opt='v' run. Its full-length signal arrays are
 # bit-identical to the default run, so only the DP cost decomposition (which
@@ -61,13 +66,45 @@ VUS_KEEP = {"dp_mycost", "dp_Cfn", "dp_gci_costed", "gci"}
 # is squeezed to plain float64 arrays; MATLAB row/col orientation is
 # normalized to 1-D where the field is logically a vector.
 VECTOR_FIELDS = {
-    "udash", "swa", "swd", "mp", "nmp", "crnmp", "gd_r", "gdwav_raw",
-    "gdwav", "sew_raw", "zcr_cand_raw", "pro_cand", "s_used", "fnwav",
-    "aencost", "cencost", "dp_gcic", "dp_sew", "dp_Cfn", "dp_mycost",
-    "gci_dp", "gci", "goi", "Lo_D", "Hi_D",
-    "dp_fc", "dp_ff", "dp_fpq", "dp_ffb", "dp_gsqm", "dp_gsd",
-    "ret_gci", "ret_goi", "ret_gcic", "ret_goic", "ret_gdwav",
-    "ret_udash", "ret_crnmp", "input_s",
+    "udash",
+    "swa",
+    "swd",
+    "mp",
+    "nmp",
+    "crnmp",
+    "gd_r",
+    "gdwav_raw",
+    "gdwav",
+    "sew_raw",
+    "zcr_cand_raw",
+    "pro_cand",
+    "s_used",
+    "fnwav",
+    "aencost",
+    "cencost",
+    "dp_gcic",
+    "dp_sew",
+    "dp_Cfn",
+    "dp_mycost",
+    "gci_dp",
+    "gci",
+    "goi",
+    "Lo_D",
+    "Hi_D",
+    "dp_fc",
+    "dp_ff",
+    "dp_fpq",
+    "dp_ffb",
+    "dp_gsqm",
+    "dp_gsd",
+    "ret_gci",
+    "ret_goi",
+    "ret_gcic",
+    "ret_goic",
+    "ret_gdwav",
+    "ret_udash",
+    "ret_crnmp",
+    "input_s",
 }
 SCALAR_FIELDS = {"nlev", "nu", "nU", "toff", "input_fs"}
 
@@ -109,9 +146,7 @@ def main() -> None:
 
     with tempfile.TemporaryDirectory() as tmp:
         scratch = Path(tmp)
-        (scratch / "dypsagoi.m").write_text(
-            instrument_apply(ref.read_bytes()), encoding="latin-1"
-        )
+        (scratch / "dypsagoi.m").write_text(instrument_apply(ref.read_bytes()), encoding="latin-1")
 
         wfilters_saved = False
         for name in FIXTURE_NAMES:

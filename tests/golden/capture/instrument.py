@@ -40,44 +40,80 @@ HEADER_LINES = (1, 486)
 # The line number identifies the stage boundary; the statements name the
 # variables to capture. Descriptions are our own words, not source text.
 HOOKS: list[tuple[int, str, list[str]]] = [
-    (175, "IAIF residual fed into the SWT (with clean-input override for stage isolation)",
-     ["global VK_OVERRIDE_UDASH;",
-      "if ~isempty(VK_OVERRIDE_UDASH), udash = VK_OVERRIDE_UDASH(:); end",
-      "GOLD.udash=udash;"]),
-    (181, "SWT setup: levels, residual length, pad-to-multiple-of-8 length",
-     ["GOLD.nlev=nlev;", "GOLD.nu=nu;", "GOLD.nU=nU;"]),
-    (182, "bior1.5 decomposition filters (convention reference)",
-     ["GOLD.Lo_D=Lo_D;", "GOLD.Hi_D=Hi_D;"]),
-    (184, "SWT approx/detail rows, trimmed back to nu",
-     ["GOLD.swa=swa;", "GOLD.swd=swd;"]),
-    (187, "multiscale product",
-     ["GOLD.mp=mp;"]),
-    (192, "negative half-wave rectified product and its cube root",
-     ["GOLD.nmp=nmp;", "GOLD.crnmp=crnmp;"]),
-    (196, "group delay: raw xewgrdel outputs and its input",
-     ["GOLD.gd_r=r;", "GOLD.zcr_cand_raw=zcr_cand;", "GOLD.sew_raw=sew;",
-      "GOLD.gdwav_raw=gdwav;", "GOLD.toff=toff;"]),
-    (197, "aligned group-delay function",
-     ["GOLD.gdwav=gdwav;"]),
-    (204, "phase-slope-projection recovered candidates",
-     ["GOLD.pro_cand=pro_cand;"]),
-    (218, "Frobenius-norm energy function and its input",
-     ["GOLD.s_used=s_used;", "GOLD.fnwav=fnwav;"]),
-    (228, "closed-phase anticausal/causal energy costs",
-     ["GOLD.aencost=aencost;", "GOLD.cencost=cencost;"]),
-    (230, "candidate set and phase-slope cost handed to the DP",
-     ["GOLD.dp_gcic=gcic;", "GOLD.dp_sew=sew;", "GOLD.gci_dp=gci;"]),
-    (248, "final refined GCIs",
-     ["GOLD.gci=gci;"]),
-    (282, "final GOIs",
-     ["GOLD.goi=goi;"]),
-    (552, "dpgci: Frobenius energy cost per candidate (vus run only)",
-     ["if ~isempty(vus)&&vus, GOLD.dp_Cfn=Cfn; end"]),
-    (699, "dpgci: forward-pass DP tables, after the loop and before the traceback",
-     ["if ~isfield(GOLD,'dp_fc'), GOLD.dp_fc=f_c; GOLD.dp_ff=f_f; GOLD.dp_fpq=f_pq;"
-      " GOLD.dp_ffb=f_fb; GOLD.dp_gsqm=g_sqm; GOLD.dp_gsd=g_sd; end"]),
-    (729, "dpgci vus branch: per-candidate DP cost decomposition",
-     ["GOLD.dp_mycost=mycost;", "GOLD.dp_gci_costed=gci;"]),
+    (
+        175,
+        "IAIF residual fed into the SWT (with clean-input override for stage isolation)",
+        [
+            "global VK_OVERRIDE_UDASH;",
+            "if ~isempty(VK_OVERRIDE_UDASH), udash = VK_OVERRIDE_UDASH(:); end",
+            "GOLD.udash=udash;",
+        ],
+    ),
+    (
+        181,
+        "SWT setup: levels, residual length, pad-to-multiple-of-8 length",
+        ["GOLD.nlev=nlev;", "GOLD.nu=nu;", "GOLD.nU=nU;"],
+    ),
+    (
+        182,
+        "bior1.5 decomposition filters (convention reference)",
+        ["GOLD.Lo_D=Lo_D;", "GOLD.Hi_D=Hi_D;"],
+    ),
+    (184, "SWT approx/detail rows, trimmed back to nu", ["GOLD.swa=swa;", "GOLD.swd=swd;"]),
+    (187, "multiscale product", ["GOLD.mp=mp;"]),
+    (
+        192,
+        "negative half-wave rectified product and its cube root",
+        ["GOLD.nmp=nmp;", "GOLD.crnmp=crnmp;"],
+    ),
+    (
+        196,
+        "group delay: raw xewgrdel outputs and its input",
+        [
+            "GOLD.gd_r=r;",
+            "GOLD.zcr_cand_raw=zcr_cand;",
+            "GOLD.sew_raw=sew;",
+            "GOLD.gdwav_raw=gdwav;",
+            "GOLD.toff=toff;",
+        ],
+    ),
+    (197, "aligned group-delay function", ["GOLD.gdwav=gdwav;"]),
+    (204, "phase-slope-projection recovered candidates", ["GOLD.pro_cand=pro_cand;"]),
+    (
+        218,
+        "Frobenius-norm energy function and its input",
+        ["GOLD.s_used=s_used;", "GOLD.fnwav=fnwav;"],
+    ),
+    (
+        228,
+        "closed-phase anticausal/causal energy costs",
+        ["GOLD.aencost=aencost;", "GOLD.cencost=cencost;"],
+    ),
+    (
+        230,
+        "candidate set and phase-slope cost handed to the DP",
+        ["GOLD.dp_gcic=gcic;", "GOLD.dp_sew=sew;", "GOLD.gci_dp=gci;"],
+    ),
+    (248, "final refined GCIs", ["GOLD.gci=gci;"]),
+    (282, "final GOIs", ["GOLD.goi=goi;"]),
+    (
+        552,
+        "dpgci: Frobenius energy cost per candidate (vus run only)",
+        ["if ~isempty(vus)&&vus, GOLD.dp_Cfn=Cfn; end"],
+    ),
+    (
+        699,
+        "dpgci: forward-pass DP tables, after the loop and before the traceback",
+        [
+            "if ~isfield(GOLD,'dp_fc'), GOLD.dp_fc=f_c; GOLD.dp_ff=f_f; GOLD.dp_fpq=f_pq;"
+            " GOLD.dp_ffb=f_fb; GOLD.dp_gsqm=g_sqm; GOLD.dp_gsd=g_sd; end"
+        ],
+    ),
+    (
+        729,
+        "dpgci vus branch: per-candidate DP cost decomposition",
+        ["GOLD.dp_mycost=mycost;", "GOLD.dp_gci_costed=gci;"],
+    ),
 ]
 
 

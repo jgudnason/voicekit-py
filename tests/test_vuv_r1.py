@@ -44,6 +44,7 @@ def test_bounded_by_cauchy_schwarz_even_with_huge_boundary_sample():
     c1_broadcast = frame_features_at(s, 32, N, 16)[2]
     assert abs(c1_broadcast) > 1.0
 
+
 def test_bounds_hold_on_random_signals():
     rng = np.random.default_rng(11)
     s = rng.standard_normal(20 * N)

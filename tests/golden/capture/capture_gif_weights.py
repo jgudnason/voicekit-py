@@ -80,8 +80,10 @@ def _non_degeneracy_report(z: dict) -> None:
             a_sq = lpc_covar(x, nar, weights=w**2, dc_offset=True).a
             a_lin = lpc_covar(x, nar, weights=w, dc_offset=True).a
             best_div = max(best_div, float(np.max(np.abs(a_sq - a_lin))))
-        print(f"    [{m}] full-rank frames={full_rank_frames}/{tstart0.size}  "
-              f"max|AR(W^2)-AR(W)|={best_div:.4g}")
+        print(
+            f"    [{m}] full-rank frames={full_rank_frames}/{tstart0.size}  "
+            f"max|AR(W^2)-AR(W)|={best_div:.4g}"
+        )
         assert full_rank_frames > 0, f"DEGENERATE: no full-rank frame for {m}"
         assert best_div > 0.1, (
             f"DEGENERATE: {m} W and W^2 give ~identical AR on every frame "

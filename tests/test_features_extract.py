@@ -43,6 +43,7 @@ def _rosenberg(period: int) -> np.ndarray:
     x[t1 : t1 + t2] = np.cos(np.pi * np.arange(t2) / (2 * t2))
     return x
 
+
 GOLDEN = Path(__file__).resolve().parent / "golden"
 FIXTURES = ["vowel_f0100_16k", "vowel_glide_16k", "vowel_f0120_8k"]
 
@@ -159,7 +160,11 @@ def test_c4_o1_zero_cycle_decomposition():
         mfdr, pa, naq = flow_statistics(preps, fs)
         cq, qoq = timing_statistics(preps)
         assert (mfdr[notch_ig], pa[notch_ig], naq[notch_ig], cq[notch_ig], qoq[notch_ig]) == (
-            0.0, 0.0, 0.0, 0.0, 0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
         )
         # spectral is not masked and not degenerate here (C5 orthogonal) -> finite.
         h1h2, hrf = spectral_statistics(preps, fs)

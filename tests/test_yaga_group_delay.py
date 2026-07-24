@@ -44,9 +44,7 @@ def test_group_delay_matches_capture(name):
     assert result.toff == int(d["toff"])
     # Candidates: MATLAB's zero-crossing indices are 1-based, ours 0-based.
     assert result.candidates.shape == d["zcr_cand_raw"].shape
-    np.testing.assert_allclose(
-        result.candidates + 1, d["zcr_cand_raw"], rtol=1e-9, atol=1e-9
-    )
+    np.testing.assert_allclose(result.candidates + 1, d["zcr_cand_raw"], rtol=1e-9, atol=1e-9)
     # Slopes (differences of adjacent centroid samples) are frame-independent.
     np.testing.assert_allclose(result.slopes, d["sew_raw"], rtol=1e-9, atol=1e-12)
 

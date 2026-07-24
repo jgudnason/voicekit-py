@@ -108,8 +108,12 @@ def test_config_declares_all_knobs():
     """FeaturesConfig fixes the whole config shape now, even fields this build ignores."""
     cfg = FeaturesConfig()
     for knob in (
-        "voicing_f0_min", "voicing_f0_max", "open_threshold", "quasi_open_level",
-        "medfilt_window", "harmonic_limit_hz",
+        "voicing_f0_min",
+        "voicing_f0_max",
+        "open_threshold",
+        "quasi_open_level",
+        "medfilt_window",
+        "harmonic_limit_hz",
     ):
         assert hasattr(cfg, knob), knob
     # The glottal-flow integration cutoff (the reference's misnamed f_preemph) is NOT

@@ -59,9 +59,17 @@ def prepare_cycles(
         )
         preps.append(
             CyclePrep(
-                a=a, b=b, nn=nn, period=period,
-                useg=useg, uuseg=uuseg, useg_shifted=useg_shifted,
-                o1=o1, o2=o2, c1=c1, c2=c2,
+                a=a,
+                b=b,
+                nn=nn,
+                period=period,
+                useg=useg,
+                uuseg=uuseg,
+                useg_shifted=useg_shifted,
+                o1=o1,
+                o2=o2,
+                c1=c1,
+                c2=c2,
             )
         )
     return preps

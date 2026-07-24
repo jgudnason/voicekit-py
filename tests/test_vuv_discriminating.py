@@ -27,6 +27,7 @@ from voicekit.yaga import yaga  # noqa: E402
 
 D1 = "vuv_d1_offset_16k"
 
+
 # The guard band W = frame_len/2 + hop/2 is sourced from the locked VoicingGrid
 # (32/10 ms) -- single source, no hardcoded durations here. At 16 kHz W = 336.
 def _grid_W(fs: int) -> float:
@@ -78,9 +79,7 @@ def test_d1_mask_exercise_runs_on_live_yaga():
 
     # (1) a detected non-voiced GCI, past the V->N boundary by >= W (outside the
     #     guard band -> an unambiguous non-voiced closure, not a don't-care).
-    nonvoiced_beyond_W = [
-        int(g) for g in gci if _label_at(fx, int(g)) == "N" and (g - t3) >= W
-    ]
+    nonvoiced_beyond_W = [int(g) for g in gci if _label_at(fx, int(g)) == "N" and (g - t3) >= W]
     assert nonvoiced_beyond_W, "no detected GCI in a non-voiced region beyond the guard band"
     # boundary case covered: GCI just past the voiced->non-voiced switch.
     assert all(g >= t3 + W for g in nonvoiced_beyond_W)
@@ -116,13 +115,9 @@ def test_d1_derived_mask_nans_nonvoiced_cycle_keeps_voiced_finite():
     subset = ("mfdr", "pa", "naq", "cq", "qoq")
 
     # a non-voiced cycle beyond W, and a voiced cycle already finite before masking
-    i_nonvoiced = next(
-        i for i, g in enumerate(gci) if t3 <= g < tso and (g - t3) >= W
-    )
+    i_nonvoiced = next(i for i, g in enumerate(gci) if t3 <= g < tso and (g - t3) >= W)
     i_voiced = next(
-        i
-        for i, g in enumerate(gci)
-        if steady_lo <= g < steady_hi and np.isfinite(feats.naq[i])
+        i for i, g in enumerate(gci) if steady_lo <= g < steady_hi and np.isfinite(feats.naq[i])
     )
     assert mask[i_nonvoiced]  # mask True on the non-voiced cycle
     assert not mask[i_voiced]  # mask False on the voiced cycle
@@ -184,8 +179,7 @@ def test_d1_voicing_mask_real_path():
 
     # A voiced-steady cycle: track calls it voiced -> unmasked, features finite.
     i_v = next(
-        i for i, g in enumerate(gci)
-        if steady_lo <= g < steady_hi and np.isfinite(feats.naq[i])
+        i for i, g in enumerate(gci) if steady_lo <= g < steady_hi and np.isfinite(feats.naq[i])
     )
     assert reason[i_v] == "voiced"
     assert np.isfinite(masked.naq[i_v])

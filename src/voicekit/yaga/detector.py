@@ -268,9 +268,7 @@ def yaga(signal: Signal, config: YagaConfig | None = None) -> YagaResult:
         fs,
         cfg.dp,
     )
-    gci_dp = traceback(
-        result, positions_1based, fs, cfg.dp, cfg.traceback_force_penultimate
-    )
+    gci_dp = traceback(result, positions_1based, fs, cfg.dp, cfg.traceback_force_penultimate)
     gci = refine_gcis(gci_dp, crnmp, cfg.refine_tol, cfg.refine_min_sep)  # 1-based
 
     # GOI: the leftover candidates through the same DP with the causal closed-phase
@@ -289,7 +287,5 @@ def yaga(signal: Signal, config: YagaConfig | None = None) -> YagaResult:
         cfg,
     )
     goi = _align_goi_to_cycles(gci, raw_goi)
-    gcis = GciResult(
-        gci=gci - 1, goi=goi, candidates=candidates, goi_candidates=goi_candidates
-    )
+    gcis = GciResult(gci=gci - 1, goi=goi, candidates=candidates, goi_candidates=goi_candidates)
     return YagaResult(gcis=gcis, residual=udash)

@@ -37,7 +37,17 @@ FIXTURE_NAMES = ["vowel_f0100_16k", "vowel_glide_16k", "vowel_f0120_8k"]
 
 # Feature arrays returned by extractVoiceFeatures, plus the derived flow u.
 FEATURE_FIELDS = [
-    "u", "mfdr", "cq", "pa", "naq", "f0", "h1h2", "hrf", "qoq", "framek", "vuv",
+    "u",
+    "mfdr",
+    "cq",
+    "pa",
+    "naq",
+    "f0",
+    "h1h2",
+    "hrf",
+    "qoq",
+    "framek",
+    "vuv",
 ]
 
 

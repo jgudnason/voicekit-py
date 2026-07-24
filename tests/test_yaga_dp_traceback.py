@@ -45,7 +45,9 @@ def test_traceback_reproduces_gci_dp(name):
     """The bug-compatible (penultimate) traceback reproduces captured gci_dp."""
     d = np.load(GOLDEN / f"{name}.npz")
     gci_dp = traceback(
-        _result_from_capture(d), d["dp_gcic"][:, 0], float(d["input_fs"]),
+        _result_from_capture(d),
+        d["dp_gcic"][:, 0],
+        float(d["input_fs"]),
         force_penultimate=True,
     )
     np.testing.assert_array_equal(gci_dp, d["gci_dp"].astype(np.int64))
