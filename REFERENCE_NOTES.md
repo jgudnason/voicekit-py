@@ -2381,6 +2381,77 @@ absent (not stubbed).
   between-segment exclusion and FAT are structurally absent, flagged in the result and
   the tests so their absence is visible, not silent.
 
+### SCORE2. The reference train is scored in float, never rounded — a scoring-semantics decision for every corpus, because rounding the reference perturbs the match criterion three different ways, all silently wrong
+
+Decided 2026-07-24 at the float/int reference gate, before the loader. A
+scoring-semantics decision (kin to SCORE1), **not** an OpenGlot detail: it governs how
+*any* corpus's reference meets `score_gci_goi`, so it lives here beside SCORE1 rather than
+in the OG-GCI entries. Triggered by OpenGlot R1, whose reference instant `t_e = (N1-1)/6`
+(OG-GCI-A) is generally **fractional-sample** — but the ruling is corpus-general.
+
+- **The decision.** The reference path is `float64` end-to-end; the estimated path stays
+  `int64` (the detector emits integer samples); **nothing on the reference path is
+  rounded.** The larynx-cycle boundaries `(n_{r-1}+n_r)/2` are midpoints of consecutive
+  *float* reference instants. Landed in the scorer at commit `7ca2f9f` (retype);
+  `CycleScore.ref_gci`/`ref_instant` retype `int→float`, and **no** `ScoreConfig` /
+  `InstantScore` field set changes, so no SCORE1 API pin breaks.
+
+- **Why "round the reference" is not a decision anyone can later claim was made: (c) is
+  three variants, each wrong differently.** Rounding a train whose instants share one
+  fractional part (period is an integer, so `frac(n_k) = frac(phase)` for all `k`) gives:
+  - **int64 truncation** — `np.asarray(ref, dtype=np.int64)`, the variant **live on main
+    from the scorer's introduction (`c0bd0f5`) until the retype (`7ca2f9f`)**. Confirmed
+    by measurement: `[32.5, 33.5] → [32, 33]`. A *uniform* per-file shift of `−frac(phase)`,
+    up to **−0.833 sample = −0.104 ms**, injected straight into μ — the one R1 metric that
+    carries authority (its reference is analytic). σ intact (uniform shift is
+    translation-invariant). This is not hypothetical; it is the behaviour of committed
+    code across that commit range.
+  - **banker's rounding** — `np.round`, the "obvious fix". On the **six** parameter sets
+    where `frac(phase) = 0.5` *and* the period is odd (`breathy/creaky/normal 360 Hz`,
+    `normal 220 Hz`, `whispery 120/300 Hz`), round-half-to-**even** sends alternate
+    instants to opposite integers, so the per-instant shift **alternates ±0.5 by cycle
+    parity**. That jitter enters σ directly: **σ corrupted by up to 0.5 sample** on exactly
+    those six files, while μ is biased ±0.5. The defect is invisible — a plausible σ under
+    either convention.
+  - **round-half-up** — σ intact, μ biased ±0.5 (0.0625 ms). Better than the other two, but
+    still a spurious μ bias for no benefit.
+  So "we round the reference" names three different silently-wrong answers; only *not*
+  rounding is well-defined.
+
+- **Measured (rule-3, distributions not summaries).** Per-file `delta = round(phase) − phase`
+  takes values in `{0, ±1/6, ±1/3, ±1/2}` across the 56 R1 sets; **max |delta| = 0.5 sample
+  = 0.0625 ms**. Boundary-displacement std **≤ 5·10⁻¹⁴ within each file** (the rounding is a
+  rigid translation of the partition, per file). Classification sensitivity (synthetic
+  estimated train, float-ref vs int-ref): **0 flips at estimate offsets 0–20**, rising to
+  only **1–2.5 % at offset ≈ period/2** (estimates sitting within ½ sample of a boundary).
+
+- **Two review errors corrected on the record (both the reviewer's, recorded so this entry
+  carries the right mechanism).** (1) The claim that boundary displacement is *non-uniform
+  across cycles because `frac(phase)` varies by mode and f0* is **false**: period is an
+  integer and phase is fixed per file, so every instant in a file shares one fractional part
+  and int-rounding is a *rigid translation* (the 5·10⁻¹⁴ std). The variation is **across
+  files**, not across cycles. (2) The "back-door tunable tolerance" framing does **not** hold
+  mechanically: a rigid translation does not widen the match window (0 flips at offsets
+  0–20), it moves the partition as a whole. The genuine non-uniformity that does exist is the
+  **banker's-rounding parity effect** above — a mechanism neither review named, and the real
+  finding of the gate.
+
+- **Scope and subsumption.** Applies to every corpus. Integer references (e.g. APLAWD
+  laryngograph sample indices) are **exact in `float64`** (indices ≪ 2⁵³), so the single
+  float path handles them losslessly — **no dual integer/float path is retained**, which
+  would have been a permanent hazard reopening the rounding question per corpus.
+
+- **What is deliberately NOT added: a scorer-side structural check.** `float64` at the API
+  is more permissive than `int64` — it accepts a reference that arrived fractional through a
+  bug, not by construction. The scorer cannot know what fractional structure any given
+  corpus's reference *should* have (`(N1-1)/6` is legitimate for R1, integer for APLAWD), so
+  the assertion belongs at the **reference source** (a constructor/loader), per corpus, not
+  in the shared scorer. Whether R1's constructor should assert its own denominator-6
+  invariant is a separate, open decision — flagged, not taken here.
+
+- **Status:** DECIDED — reference scored in float, never rounded (`7ca2f9f`). Corpus-general.
+  The constructor-side structural-assertion question is open.
+
 ### OG-GCI. The OpenGlot GCI reference: analytic tₑ for R1, −dUg/dt-peak for R2; the peak-pick operator is a systematically-early estimator whose magnitude is R1-specific and does not transfer
 
 Recorded 2026-07-23 at the OpenGlot gate, before any harness code. OpenGlot ships **no
