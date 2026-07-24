@@ -85,11 +85,11 @@ class CycleScore:
     """
 
     index: int  # index r into the reference GCI array (interior cycles only)
-    ref_gci: int  # the cycle-defining reference GCI, n[r] (samples)
+    ref_gci: float  # the cycle-defining reference GCI, n[r] (samples; may be fractional)
     lo: float  # cycle lower bound (n[r-1]+n[r])/2, inclusive (samples)
     hi: float  # cycle upper bound (n[r]+n[r+1])/2, exclusive (samples)
-    ref_instant: int  # reference instant measured against (GCI==ref_gci; GOI==cycle's GOI)
-    detections: tuple[int, ...]  # estimated instants in [lo, hi) (samples, sorted)
+    ref_instant: float  # reference instant measured against (GCI==ref_gci; GOI==cycle's GOI)
+    detections: tuple[int, ...]  # estimated instants in [lo, hi) (samples, sorted; est is integer)
     outcome: Outcome
     timing_error: float | None  # detection - ref_instant (samples); None unless identification
 
@@ -139,7 +139,7 @@ class ScoreResult:
         return self.gci.n_identification == self.goi.n_identification
 
 
-def _validate_reference(name: str, ref: npt.NDArray[np.int64]) -> None:
+def _validate_reference(name: str, ref: npt.NDArray[np.float64]) -> None:
     if ref.ndim != 1:
         raise ValueError(f"{name} must be 1-D, got shape {ref.shape}")
     if ref.size < 3:
@@ -150,7 +150,7 @@ def _validate_reference(name: str, ref: npt.NDArray[np.int64]) -> None:
         raise ValueError(f"{name} must be strictly increasing (sorted, no duplicates)")
 
 
-def _cycle_bounds(ref_gci: npt.NDArray[np.int64]) -> list[tuple[int, float, float]]:
+def _cycle_bounds(ref_gci: npt.NDArray[np.float64]) -> list[tuple[int, float, float]]:
     """Interior cycles as ``(r, lo, hi)``: lo/hi are the half-way points to neighbours.
 
     Only ``r = 1 .. R-2`` yield a cycle; the DYPSA formula needs both neighbours, so
@@ -164,15 +164,23 @@ def _cycle_bounds(ref_gci: npt.NDArray[np.int64]) -> list[tuple[int, float, floa
     return bounds
 
 
-def _detections_in(est: npt.NDArray[np.int64], lo: float, hi: float) -> tuple[int, ...]:
-    """Estimated instants in ``[lo, hi)`` (lo inclusive, hi exclusive), sorted."""
-    sel = est[(est >= lo) & (est < hi)]
-    return tuple(int(x) for x in np.sort(sel))
+def _in_window(
+    values: npt.NDArray[np.int64] | npt.NDArray[np.float64], lo: float, hi: float
+) -> npt.NDArray[np.int64] | npt.NDArray[np.float64]:
+    """Instants in ``[lo, hi)`` (lo inclusive, hi exclusive), sorted, dtype preserved.
+
+    Used for both the estimated train (integer, becomes ``detections``) and the
+    reference train (float since the retype -- an analytic reference can be
+    fractional-sample; REFERENCE_NOTES SCORE2). The boundaries ``lo``/``hi`` are
+    themselves the midpoints of consecutive *float* reference instants, so nothing
+    on the reference path is ever rounded.
+    """
+    return np.sort(values[(values >= lo) & (values < hi)])
 
 
 def _score_instants(
-    cycle_ref_gci: npt.NDArray[np.int64],
-    ref_instants: npt.NDArray[np.int64],
+    cycle_ref_gci: npt.NDArray[np.float64],
+    ref_instants: npt.NDArray[np.float64],
     est_instants: npt.NDArray[np.int64],
     fs: float,
     accurate: npt.NDArray[np.bool_] | None,
@@ -204,16 +212,16 @@ def _score_instants(
         # Reference instant for this cycle: for GCI it is the cycle-defining GCI; for
         # GOI it is the single reference GOI lying inside the cycle. Bin the reference
         # instants the same way we bin detections and require exactly one.
-        ref_in = _detections_in(ref_instants, lo, hi)
-        if len(ref_in) != 1:
+        ref_in = _in_window(ref_instants, lo, hi)
+        if ref_in.size != 1:
             raise ValueError(
-                f"cycle r={r} [{lo}, {hi}) contains {len(ref_in)} reference instants, "
+                f"cycle r={r} [{lo}, {hi}) contains {ref_in.size} reference instants, "
                 "expected exactly 1 — reference train is inconsistent with the GCI "
                 "cycle partition"
             )
-        ref_instant = ref_in[0]
+        ref_instant = float(ref_in[0])
 
-        det = _detections_in(est_instants, lo, hi)
+        det = tuple(int(x) for x in _in_window(est_instants, lo, hi))
         if len(det) == 1:
             outcome = Outcome.IDENTIFICATION
             zeta = float(det[0] - ref_instant)
@@ -234,10 +242,10 @@ def _score_instants(
         cycles.append(
             CycleScore(
                 index=r,
-                ref_gci=int(cycle_ref_gci[r]),
+                ref_gci=float(cycle_ref_gci[r]),
                 lo=lo,
                 hi=hi,
-                ref_instant=int(ref_instant),
+                ref_instant=ref_instant,
                 detections=det,
                 outcome=outcome,
                 timing_error=timing_error,
@@ -286,8 +294,14 @@ def score_gci_goi(
     Parameters
     ----------
     est_gci, ref_gci
-        Estimated and reference GCI sample indices (1-D, integer). ``ref_gci``
-        defines the larynx-cycle partition and must be strictly increasing.
+        Estimated GCI sample indices (1-D, integer -- the detector emits samples)
+        and reference GCI positions (1-D, real-valued). ``ref_gci`` defines the
+        larynx-cycle partition and must be strictly increasing. The reference is
+        **not rounded** (REFERENCE_NOTES SCORE2): an analytic reference is often
+        fractional-sample (OpenGlot R1's ``t_e`` is ``(N1-1)/6``), and rounding it
+        would perturb every cycle boundary -- a per-file constant μ bias, or, under
+        banker's rounding, a σ corruption. Integer references (e.g. laryngograph
+        sample indices) are exact in float64 and handled by the same path.
     fs
         Sampling rate (Hz), used only to convert timing errors to milliseconds.
     est_goi, ref_goi
@@ -309,7 +323,7 @@ def score_gci_goi(
     """
     config = config or ScoreConfig()
     est_gci_a = np.asarray(est_gci, dtype=np.int64).reshape(-1)
-    ref_gci_a = np.asarray(ref_gci, dtype=np.int64).reshape(-1)
+    ref_gci_a = np.asarray(ref_gci, dtype=np.float64).reshape(-1)
     _validate_reference("ref_gci", ref_gci_a)
     if np.any(np.diff(np.sort(est_gci_a)) == 0):
         raise ValueError("est_gci contains duplicate sample indices")
@@ -327,7 +341,7 @@ def score_gci_goi(
     goi_score: InstantScore | None = None
     if est_goi is not None and ref_goi is not None:
         est_goi_a = np.asarray(est_goi, dtype=np.int64).reshape(-1)
-        ref_goi_a = np.asarray(ref_goi, dtype=np.int64).reshape(-1)
+        ref_goi_a = np.asarray(ref_goi, dtype=np.float64).reshape(-1)
 
         accurate_a: npt.NDArray[np.bool_] | None = None
         if ref_goi_accurate is not None:

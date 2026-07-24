@@ -87,6 +87,52 @@ def test_one_of_each_outcome_full_decomposition():
     assert gci.accuracy_ms == pytest.approx(0.25)  # 2.5 samples * 0.1 ms
 
 
+def test_fractional_reference_is_not_rounded_and_drives_fractional_boundaries():
+    """A fractional-sample reference (the retype, REFERENCE_NOTES SCORE2) is exact.
+
+    ref = [100.5, 200.5, 300.5, 400.5, 500.5, 600.5] mirrors R1's constant
+    fractional phase (every instant shares frac .5). Interior cycle r=1 is
+    ``[(100.5+200.5)/2, (200.5+300.5)/2) = [150.5, 250.5)`` with reference instant
+    200.5 -- **not** 200. Under the old int64 truncation this cycle would have
+    ref_instant 200 and a boundary at 250.0; this test breaks if the reference is
+    ever rounded again.
+    """
+    ref = np.array([100.5, 200.5, 300.5, 400.5, 500.5, 600.5])  # float, fractional
+    # est 203 -> r1; est 250 -> r1 (250 < boundary 250.5); est 251 -> r2.
+    res = score_gci_goi(np.array([203, 251], dtype=np.int64), ref, FS)
+    cyc = _by_index(res.gci.cycles)
+
+    assert (cyc[1].lo, cyc[1].hi) == (150.5, 250.5)  # fractional boundaries, not 150/250
+    assert cyc[1].ref_instant == 200.5  # exact, never truncated to 200
+    assert cyc[1].detections == (203,)
+    assert cyc[1].outcome is Outcome.IDENTIFICATION
+    assert cyc[1].timing_error == pytest.approx(2.5)  # 203 - 200.5, fractional zeta
+
+    assert cyc[2].detections == (251,)  # 251 >= 250.5 -> upper cycle
+    assert cyc[2].ref_instant == 300.5
+    assert cyc[2].timing_error == pytest.approx(-49.5)  # 251 - 300.5
+
+    # zeta = [+2.5, -49.5]; the reference contributes its fractional part to bias.
+    assert res.gci.bias_ms == pytest.approx(np.mean([2.5, -49.5]) / FS * 1000.0)
+
+
+def test_boundary_uses_the_fractional_reference_not_a_rounded_one():
+    """Classification at a fractional boundary: 250 lands in r=1, not r=2.
+
+    With ref instants at .5, the r1|r2 boundary is 250.5. Sample 250 is below it, so
+    it belongs to r=1 (a hit), whereas an int-rounded reference would put the
+    boundary at 250.0 and send 250 to r=2. This pins that the *match criterion*
+    itself reads the fractional reference.
+    """
+    ref = np.array([100.5, 200.5, 300.5, 400.5, 500.5, 600.5])
+    res = score_gci_goi(np.array([250], dtype=np.int64), ref, FS)
+    cyc = _by_index(res.gci.cycles)
+    assert cyc[1].detections == (250,)  # 250 < 250.5 -> r=1
+    assert cyc[1].outcome is Outcome.IDENTIFICATION
+    assert cyc[2].detections == ()  # nothing reached r=2
+    assert cyc[2].outcome is Outcome.MISS
+
+
 def test_deferred_markers_present():
     """The deferred pieces (SCORE1) carry their current marker values.
 
