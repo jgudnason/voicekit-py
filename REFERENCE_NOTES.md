@@ -2493,3 +2493,157 @@ point of the entry.
 - **Status:** RATIFIED. R1: GCI accuracy only, no GOI accuracy (t_o is a synthesis seam).
   R2: GOI accuracy/bias scored against flow-onset, reference-accurate flag all-True by
   decision (reason recorded), σ/μ inheriting the OG-GCI operator bias. See OG-GCI.
+
+### OG-GCI-A. The R1 reference is a CLOSED FORM, not "analytic tₑ" — the period is not fs/f0, sample 0 is a pulse start, and its evidentiary base is now complete
+
+Recorded 2026-07-24 at the R1/R2 driver gate, from OpenGlot's shipped generation code
+(`lf.m`, `synthFrame.m`) and confirmed by measurement on all 336 R1 files. Amends
+OG-GCI's "R1 reference = analytic tₑ" bullet: the object is stronger and more exact than
+that phrase implied.
+
+- **The period is NOT fs/f0.** `lf.m` fixes `fsH = 48000` internally, synthesises one
+  pulse on a 48 kHz grid, and calls `resample(u, fs, fsH)` *inside the pulse function*;
+  `synthFrame.m` then concatenates copies of that single resampled pulse. The period in
+  the shipped file is therefore `Npulse = ceil((N1+N2)/6)` with `N1 = floor(48000·Te)`,
+  `N2 = floor(48000·Tb + 1)` — an integer depending on **phonation mode as well as f0**.
+  For `E_normal_140Hz`: 58 samples, not the nominal `8000/140 = 57.14`. Measured: **0
+  mismatches on 336/336 files**, period uniform within every file.
+- **Why it is load-bearing.** A reference train built from the filename f0 drifts
+  ~23 samples (≈2.9 ms) across a 0.2 s file — an order of magnitude above the σ being
+  measured — and it fails *silently*, yielding a plausible wrong number, not an error.
+- **tₑ's index is exact by construction.** `t1 = linspace(0,Te,N1)` has an inclusive
+  endpoint and `N1 = floor(48000·Te)`, so tₑ lands exactly on grid index `N1−1` at
+  48 kHz — a construction, not a rounding. Under the 1/6 rate change that is output index
+  `(N1−1)/6`.
+- **Phase is exact too.** `synthFrame` returns `synth(length(u)+1:end)` — the **first
+  pulse is dropped** — so 0-based sample 0 of every R1 file is exactly a pulse start.
+  Confirmed: `flow[0:6] = [-3, 52, 230, 543, 1008, 1635]` (starts at ~0, rising).
+- **The reference train:** `n_k = k·ceil((N1+N2)/6) + (N1−1)/6`. Closed form, zero drift,
+  no search, no peak-pick. This **replaces** "analytic tₑ" as OG-GCI's R1 reference.
+
+- **The evidentiary base is complete as of this entry, and it consists of exactly three
+  things — enumerated so no fourth is later assumed.** Nothing else will test the R1
+  reference before the R1 σ numbers exist; this is entered knowingly.
+  1. **P1 — reconstruction reproduces the shipped waveform.** A faithful
+     reimplementation of `lf.m` reproduces the shipped flow channel: argmin trains
+     exactly equal on **52/56** distinct signals, max error 1.92 % of peak (median
+     0.07 %). The 4 remaining signals differ by exactly **−1 sample on every pulse**
+     (whole-signal uniform, `unique diffs = [-1]`) — a resample-filter implementation
+     difference (scipy `resample_poly` vs MATLAB `resample`), not an arithmetic error.
+  2. **Test B — the period formula is exact.** `Npulse == ceil((N1+N2)/6)`, zero
+     tolerance: 0 mismatches on 56/56 parameter sets and 0/336 shipped files.
+  3. **The analytic argument (claim (i)).** dU/dt attains its global minimum at exactly
+     Te with value exactly −EE on all 56 parameter sets (A′-2, machine-epsilon), and u₂
+     rises monotonically from −EE by the epsilon fixed point (`ε·Ta = 1−exp(−ε·Tb)` ⇒
+     `u₂(Te⁺) = −EE`, increasing thereafter). So tₑ is genuinely the −dU/dt peak, not
+     merely placed there by fiat.
+- **Test A contributed NOTHING to the closed form** and is not part of this base. It
+  asserted `|argmin − (N1−1)| < 1` at 48 kHz and *failed*; the failure was the operator's
+  half-sample bias, not a defect in the reference (see OG-GCI-C). A′-1 (that
+  `t1[N1−1] == Te`) was dropped as circular — it tests `linspace`, not our code. The
+  non-circular content is (i)–(iii) above.
+- **Where each part is a committed test.** Test B and A′-2's (i)–(iii) land as CI tests
+  with the item-2 reference constructor (they exercise its LF code); P1's reconstruction
+  agreement is a validation-side corpus check, not a unit test.
+
+### OG-GCI-B (COROLLARY, load-bearing). R1 σ is NOT evidence of physical GCI accuracy — reference and signal share a common origin
+
+Recorded 2026-07-24. The closed form of OG-GCI-A is a reimplementation of the generator's
+own arithmetic, so the R1 reference and the R1 signal share a common origin: we compute
+the instant's location from the same arithmetic that produced it.
+
+- **R1 validates recovery of a synthesis seam whose position we already know.** It is a
+  known-answer test of the scoring instrument and of a detector's ability to find a
+  periodic excitation — nothing more. It is **not** evidence of GCI accuracy against a
+  physical closure, because **no physical closure exists in R1**: the LF synthesis has no
+  closed phase (cf. OG-GOI).
+- Someone will later cite an R1 σ as if it were a detection-accuracy figure. It is not,
+  and any reported R1 σ must reference this entry. Physical-closure evidence in the
+  synthetic phase comes from R2 alone.
+
+### OG-GCI-C. "48k→8k as generated" is PER-PULSE; the earlier operator-bias magnitudes were a RECONSTRUCTION THAT FITS, NOT A RECOVERY; and the R2 reference operator's bias is now measured
+
+Recorded 2026-07-24. **Declared standing, up front: the reconciliation of the earlier
+per-mode operator-bias magnitudes below is a reconstruction that fits, not a recovered
+procedure — the earlier session's peak-picker code is not available.** And, also up
+front: **the project-facing conclusion does not depend on that reconciliation.** R1's
+reference is validated directly by P1 + Test B + the analytic argument (OG-GCI-A),
+independent of whether the M-1/M-2 story below is the true history. A reader may stop
+here for the R1 conclusion; the rest is diagnosis.
+
+- **Correction to the mechanism.** The 48 k→8 k resample OG-GCI names is real and now
+  mechanistically evidenced — but it happens **per pulse, inside `lf.m`**, not on the
+  whole signal. `LF_code_demo.m` sets `fs = 8000` at the top level, which reads as
+  native-8 kHz generation; the resample is one level down. Recorded so the next reader
+  does not hit the same apparent contradiction.
+- **The re-derivation disagreed; the disagreement is a two-effect reconstruction.** A
+  fresh measurement gave per-mode operator−reference of −0.76 / −0.79 / −0.38 / −0.16
+  (normal/breathy/creaky/whispery) against OG-GCI's −1.10 / −1.03 / −0.78 / −0.61. The
+  gap was **not uniform** (+0.244…+0.455, spread 0.211), ruling out any single additive
+  cause. Two effects, each independently evidenced as *existing*, jointly land within
+  ±0.12 of the four numbers:
+  - **M-1, reference convention** (mode-independent, mean 0.25 sample): the earlier
+    figures were measured against continuous `8000·Te`; the ratified reference is the
+    index `(N1−1)/6`. Exact per-file difference `[frac(48000·Te)+1]/6`, bounded
+    (0.167, 0.333]. Evidenced from `lf.m` source (inclusive-endpoint `linspace`).
+  - **M-2, parabolic sub-sample refinement** (mode-dependent, 0.02–0.15 sample): the
+    alternative operator OG-GCI itself names. Largest for the flattest extremum
+    (whispery), which is the mode with the largest gap.
+  Applying both moves the gap from a same-sign mean of +0.36 to a **mixed-sign** mean of
+  +0.005 (residuals +0.05 / −0.12 / +0.02 / +0.07). The sign change is the signature of a
+  resolved systematic — but note it is also what a two-parameter fit to four points looks
+  like, and M-2's magnitude is not independently pinned. **Standing: KNOWN DISCREPANCY,
+  mechanism proposed and evidenced as existing, reconstruction not recovery.** Measured
+  magnitude and per-mode distribution recorded above; not closed.
+- **The R2 reference operator's bias is now MEASURED (this is the durable result).** Test
+  A was labelled as measuring the closed form but was in fact measuring the operator — the
+  same GCI-vs-operator conflation that is easy to repeat on R2, preserved here for that
+  reason. On R1's LF pulses at 48 kHz, against the exact index `N1−1`:
+  - **central difference + discrete argmin is early by 0 or 1 sample**, mode-dependent:
+    whispery 0 on all 14 f0, breathy 1 on all 14, normal/creaky mixed (mean −0.64/−0.93);
+  - **backward difference is late by 0 or 1 sample** (devs `{0, +1}`).
+  Central and backward **bracket** the true index from opposite sides — the signature of a
+  correct target measured by two oppositely-biased instruments, which is the conclusive
+  evidence that the *closed form's* target is right and the ≤1-sample spread is the
+  *operator's*. OG-GCI's ratified R2 operator is central-difference + argmin, **no
+  sub-sample refinement**; that baseline stands, now with its bias measured rather than
+  merely asserted early. The magnitude does not transfer to R2 (different rate, real flow,
+  no LF cusp), but the *fact* of a quantified, non-zero, shape-dependent early bias is
+  established. See OG-GOI-E for the consequence on R2's GOI standing.
+
+### OG-GCI-D. Three corpus facts, recorded so they are not re-derived
+
+Recorded 2026-07-24.
+
+- **The generator's guard is inert.** `lf.m`'s `if N1+N2 < floor(fs/f0)` compares a
+  **48 kHz** sample count against an **8 kHz** period; it can never fire (at f0=360:
+  133 vs 22). Measured: fired on 0/56 signals. A latent generator bug with no effect.
+- **`README_RepositoryI.txt` is wrong about its own contents.** It documents the vowel set
+  as "a, i, u, or ae" (four); the tree has **six** vowel folders and 336 = 6×56 files.
+  Reason to pin the scored file set by manifest rather than by shipped documentation.
+- **The R1 flow channel is bit-identical across all 6 vowels.** The flow is generated
+  before the vocal-tract filter; only the filter differs by vowel. So R1 is **56 distinct
+  reference trains × 6**, not 336. Vowel is a genuine *scoring* axis (the detector reads
+  the pressure channel, which does differ) but a **null axis for the reference** — every
+  reference-driven aggregate must report `n_distinct_reference_trains` alongside
+  `n_files`, or it silently inflates N by 6×.
+
+### OG-GOI-E. The measured operator bias makes R2's GOI standing WORSE, not better
+
+Recorded 2026-07-24. Amends OG-GOI's R2 GOI standing in light of OG-GCI-C's measurement.
+
+- OG-GOI already established R2 GOI σ/μ carry an **unquantified** reference bias with a
+  `reference_accurate` flag set **all-True by decision**, not by property.
+- OG-GCI-C now **measures** that the reference operator (central difference + argmin) has
+  a non-zero, **shape-dependent** early bias on synthetic pulses. Shape-dependence is
+  precisely what differs between a GCI (sharp closure cusp) and a GOI (gentler opening),
+  so the one thing we now know about the operator is the one thing that most undermines
+  treating GOI like GCI.
+- **This worsens, not improves, R2 GOI standing.** The bias was suspected; it is now
+  established in direction and cause, unquantified on R2 only because R2 has no truth to
+  measure against. Never estimated by fitting, never corrected (per OG-GCI).
+- **Required in the R2 driver report.** The line
+  `"GOI reference-accurate: N/N by decision OG-GOI, not by measurement"` must sit
+  alongside a statement that **the reference operator's bias is known non-zero and
+  shape-dependent on synthetic data (OG-GCI-C), unquantified on R2.** Both facts, adjacent,
+  in the output — not one in the report and one in the ledger.
