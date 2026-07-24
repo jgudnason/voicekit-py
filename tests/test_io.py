@@ -52,10 +52,40 @@ class TestWav:
         sig = read_wav(tmp_path / "f32.wav")
         np.testing.assert_allclose(sig.samples, data, atol=1e-7)
 
-    def test_rejects_stereo_file(self, tmp_path: Path) -> None:
+    def test_rejects_stereo_file_without_channel(self, tmp_path: Path) -> None:
         wavfile.write(tmp_path / "st.wav", 8000, np.zeros((100, 2), dtype=np.int16))
-        with pytest.raises(ValueError, match="channels"):
+        with pytest.raises(ValueError, match="no default channel"):
             read_wav(tmp_path / "st.wav")
+
+    def test_selects_channel_of_multichannel_file(self, tmp_path: Path) -> None:
+        # Three distinct constant channels, as OpenGlot R2 ships
+        # (pressure / glottal flow / glottal area): reading the wrong one is the
+        # silent-wrong-answer this parameter exists to prevent.
+        pcm = np.zeros((100, 3), dtype=np.int16)
+        pcm[:, 0] = 2**14  # 0.5
+        pcm[:, 1] = -(2**15)  # -1.0
+        pcm[:, 2] = 2**13  # 0.25
+        wavfile.write(tmp_path / "r2.wav", 44100, pcm)
+        for ch, expected in ((0, 0.5), (1, -1.0), (2, 0.25)):
+            sig = read_wav(tmp_path / "r2.wav", channel=ch)
+            assert sig.fs == 44100
+            np.testing.assert_allclose(sig.samples, np.full(100, expected), atol=1e-9)
+
+    def test_channel_is_recorded_in_source(self, tmp_path: Path) -> None:
+        wavfile.write(tmp_path / "st.wav", 8000, np.zeros((100, 2), dtype=np.int16))
+        sig = read_wav(tmp_path / "st.wav", channel=1)
+        assert sig.source == f"{tmp_path / 'st.wav'}#ch1"
+
+    def test_rejects_out_of_range_channel(self, tmp_path: Path) -> None:
+        wavfile.write(tmp_path / "st.wav", 8000, np.zeros((100, 2), dtype=np.int16))
+        with pytest.raises(ValueError, match=r"channel must be in \[0, 1\]"):
+            read_wav(tmp_path / "st.wav", channel=2)
+
+    def test_mono_accepts_channel_zero_only(self, tmp_path: Path) -> None:
+        wavfile.write(tmp_path / "m.wav", 8000, np.zeros(100, dtype=np.int16))
+        assert read_wav(tmp_path / "m.wav", channel=0).n_samples == 100
+        with pytest.raises(ValueError, match="is mono"):
+            read_wav(tmp_path / "m.wav", channel=1)
 
     def test_write_rejects_out_of_range(self, tmp_path: Path) -> None:
         sig = Signal(samples=np.array([0.0, 1.5]), fs=8000)
