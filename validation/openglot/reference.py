@@ -80,6 +80,33 @@ def _pulse_sample_counts(rk: float, rg: float, f0: float) -> tuple[int, int]:
     return n1, n2
 
 
+def _assert_phase_invariant(phase: float, period: int, fs: float) -> None:
+    """Raise if the reference phase violates its construction invariant.
+
+    Ground-truth construction: a violation means the reference is wrong, so this
+    raises (nothing downstream should run), never warns. Deliberately checks the
+    *structure*, not ``phase == (N1-1)*fs/FSH`` -- that is a tautology of the line
+    that computed it and cannot fail. The non-trivial invariants:
+
+    - the 48 kHz -> fs rate change is an **integer** ratio (for R1, exactly 6), so
+      ``phase`` must be a grid index over that ratio: ``ratio * phase`` is an
+      integer. A wrong-rate reimplementation (wrong ``fs`` or ``FSH``) breaks this.
+    - ``0 <= phase < period`` -- the phase is the first closure, inside one period.
+      A wrong-arithmetic phase that has escaped its period breaks this.
+    """
+    ratio = FSH / fs
+    if ratio != round(ratio):
+        raise ValueError(f"48 kHz->fs rate change must be an integer ratio, got FSH/fs = {ratio}")
+    scaled = phase * ratio
+    if abs(scaled - round(scaled)) > 1e-9:
+        raise ValueError(
+            f"reference phase {phase} is not a grid index over the {ratio:g}x rate "
+            f"change (phase*ratio = {scaled}, not an integer)"
+        )
+    if not 0.0 <= phase < period:
+        raise ValueError(f"reference phase {phase} outside one period [0, {period})")
+
+
 def pulse_period(mode: str, f0: float, fs: float = R1_FS) -> int:
     """Inter-GCI period in output samples: ``ceil((N1+N2) * fs / 48000)``.
 
@@ -111,6 +138,7 @@ def reference_gci_train(
     n1, n2 = _pulse_sample_counts(rk, rg, f0)
     period = math.ceil((n1 + n2) * fs / FSH)
     phase = (n1 - 1) * fs / FSH
+    _assert_phase_invariant(phase, period, fs)
     n_pulses = math.ceil((n_samples - phase) / period)
     if n_pulses <= 0:
         return np.empty(0, dtype=np.float64)

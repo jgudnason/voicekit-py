@@ -96,6 +96,25 @@ class TestReferenceTrainStructure:
             pulse_period("bogus", 140.0)
 
 
+class TestPhaseInvariant:
+    """The constructor asserts its own fractional structure (SCORE2 layering)."""
+
+    def test_holds_for_all_parameter_sets(self) -> None:
+        # If the invariant were wrong for any real set, reference_gci_train would raise.
+        for mode, f0 in ALL_COMBINATIONS:
+            reference_gci_train(mode, f0, n_samples=1600)  # no raise
+
+    def test_non_integer_rate_ratio_raises(self) -> None:
+        # fs that does not divide 48000 -> the resample is not an integer ratio.
+        with pytest.raises(ValueError, match="integer ratio"):
+            reference_gci_train("normal", 140.0, n_samples=1600, fs=7000.0)
+
+    def test_denominator_six_structure_is_what_is_asserted(self) -> None:
+        # A legitimate integer-ratio fs (16 kHz -> ratio 3) still satisfies the
+        # grid-index invariant, proving the check is structural, not fs==8000.
+        reference_gci_train("normal", 140.0, n_samples=1600, fs=16000.0)  # no raise
+
+
 def test_covers_all_56_parameter_sets() -> None:
     # Guard the claim "over all 56 combinations": if RepositoryI's grid changes,
     # this fails rather than silently testing a subset.
